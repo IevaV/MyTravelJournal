@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mytraveljournal/constants/routes.dart';
 import 'package:mytraveljournal/services/auth/auth_exceptions.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
-import '../components/authComponents/auth_input_field.dart';
+import '../components/auth_components/auth_input_field.dart';
 import '../constants/color_constants.dart';
 import '../utilities/show_error_dialog.dart';
 
@@ -60,12 +60,12 @@ class _LoginViewState extends State<LoginView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  AuthInPutField(
+                  AuthInputField(
                     textController: _email,
                     hintText: 'Enter your email here',
                     obscureText: false,
                   ),
-                  AuthInPutField(
+                  AuthInputField(
                     textController: _password,
                     hintText: 'Enter your password here',
                     obscureText: true,

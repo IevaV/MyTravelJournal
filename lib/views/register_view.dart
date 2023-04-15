@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mytraveljournal/components/authComponents/auth_input_field.dart';
+import 'package:mytraveljournal/components/auth_components/auth_input_field.dart';
 import 'package:mytraveljournal/constants/color_constants.dart';
 import 'dart:developer' as devtools show log;
 import 'package:mytraveljournal/constants/routes.dart';
@@ -148,17 +148,17 @@ class _RegisterViewState extends State<RegisterView> {
                   //     ),
                   //   ),
                   // ),
-                  AuthInPutField(
+                  AuthInputField(
                     textController: _email,
                     hintText: 'Enter your email here',
                     obscureText: false,
                   ),
-                  AuthInPutField(
+                  AuthInputField(
                     textController: _password,
                     hintText: 'Enter your password here',
                     obscureText: true,
                   ),
-                  AuthInPutField(
+                  AuthInputField(
                     textController: _passwordConfirm,
                     hintText: 'Confirm your password here',
                     obscureText: true,

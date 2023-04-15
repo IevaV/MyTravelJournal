@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../../constants/color_constants.dart';
 
 @immutable
-class AuthInPutField extends StatelessWidget {
-  const AuthInPutField({super.key, required this.textController, required this.hintText, required this.obscureText});
+class AuthInputField extends StatelessWidget {
+  const AuthInputField({super.key, required this.textController, required this.hintText, required this.obscureText});
   final TextEditingController textController;
   final String hintText;
   final bool obscureText;
