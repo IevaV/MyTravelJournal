@@ -1,10 +1,11 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
+import 'package:mytraveljournal/views/add_new_trip_view.dart';
 import 'package:mytraveljournal/views/landing_view.dart';
 import 'package:mytraveljournal/views/login_view.dart';
 import 'package:mytraveljournal/views/register_view.dart';
-import 'package:mytraveljournal/views/verify_email.dart';
+import 'package:mytraveljournal/views/trip_memory_view.dart';
+import 'package:mytraveljournal/views/verify_email_view.dart';
 import 'package:mytraveljournal/views/welcome_view.dart';
 
 import 'constants/routes.dart';
@@ -24,6 +25,8 @@ void main() {
         registerRoute: (context) => const RegisterView(),
         verifyEmailRoute: (context) => const VerifyEmailView(),
         landingRoute: (context) => const LandingView(),
+        addNewTripRoute: (context) => const AddNewTripView(),
+        // tripMemoryRoute: (context) => const TripMemoryView(),
       },
     ),
   );

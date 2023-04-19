@@ -14,7 +14,7 @@ class _ContentCardState extends State<ContentCard> {
     return Flexible(
       flex: 1,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(30.0),
         child: Card(
           elevation: 15,
           shape: RoundedRectangleBorder(

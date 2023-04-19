@@ -1,0 +1,51 @@
+[
+    {
+        "trip_title": "STRING",
+        "start_date": "DATE object",
+        "end_date": "DATE object",
+        "days": [
+            {
+                "day": 1,
+                "date": "DATE object",
+                "start_destionation": "STRING address",
+                "end_destionation": "STRING address",
+                "destionations": [
+                    {
+                        "departure_time": "DATE TIME object",
+                        "arrival_time": "DATE TIME object",
+                        "departure_latitude": "Coordinates",
+                        "departure_longitude": "Coordinates",
+                        "arrival_latitude": "Coordinates",
+                        "arrival_longitude": "Coordinates",
+                        "total_travel_time": "DATE TIME object",
+                        "travel_type": "by foot, car, train, plane etc",
+                        "travel_costs": [
+                            {}
+                        ],
+                        "destionation_activities": [
+                            {}
+                        ]
+                    }
+                ]
+            },
+            {
+                "day": 2,
+                "date": "DATE object",
+                "start_destionation": "STRING address",
+                "end_destionation": "STRING address",
+                "destionations": [
+                    {}
+                ]
+            },
+            {
+                "day": 3,
+                "date": "DATE object",
+                "start_destionation": "STRING address",
+                "end_destionation": "STRING address",
+                "destionations": [
+                    {}
+                ]
+            }
+        ]
+    }
+]
