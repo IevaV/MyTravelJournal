@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/constants/routes.dart';
 import 'package:mytraveljournal/services/auth/auth_exceptions.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
@@ -6,14 +7,14 @@ import '../components/auth_components/auth_input_field.dart';
 import '../constants/color_constants.dart';
 import '../utilities/show_error_dialog.dart';
 
-class LoginView extends StatefulWidget {
-  const LoginView({super.key});
+class SignInView extends StatefulWidget {
+  const SignInView({super.key});
 
   @override
-  State<LoginView> createState() => _LoginViewState();
+  State<SignInView> createState() => _SignInViewState();
 }
 
-class _LoginViewState extends State<LoginView> {
+class _SignInViewState extends State<SignInView> {
   late final TextEditingController _email;
   late final TextEditingController _password;
 
@@ -76,6 +77,7 @@ class _LoginViewState extends State<LoginView> {
                       padding: const EdgeInsets.symmetric(horizontal: 50.0),
                       child: TextButton(
                         onPressed: () {
+                          //TODO navigation to Forgot Password view
                           Navigator.of(context).pushNamedAndRemoveUntil(
                             registerRoute,
                             (route) => false,
@@ -95,24 +97,6 @@ class _LoginViewState extends State<LoginView> {
                 ],
               ),
             ),
-            // TextField(
-            //   controller: _email,
-            //   enableSuggestions: false,
-            //   autocorrect: false,
-            //   keyboardType: TextInputType.emailAddress,
-            //   decoration: const InputDecoration(
-            //     hintText: 'Enter your email here',
-            //   ),
-            // ),
-            // TextField(
-            //   controller: _password,
-            //   obscureText: true,
-            //   enableSuggestions: false,
-            //   autocorrect: false,
-            //   decoration: const InputDecoration(
-            //     hintText: 'Enter your password here',
-            //   ),
-            // ),
             Flexible(
               flex: 2,
               child: Column(
@@ -127,11 +111,9 @@ class _LoginViewState extends State<LoginView> {
                         final user = AuthService.firebase().currentUser;
                         if ((user?.isEmailVerified ?? false) &&
                             context.mounted) {
-                          Navigator.of(context).pushNamedAndRemoveUntil(
-                              landingRoute, (route) => false);
+                          context.go('/home');
                         } else {
-                          Navigator.of(context).pushNamedAndRemoveUntil(
-                              verifyEmailRoute, (route) => false);
+                          context.go('/verify-email');
                         }
                       } on UserNotFoundAuthException {
                         await showErrorDialog(context, 'User not found');
@@ -175,10 +157,7 @@ class _LoginViewState extends State<LoginView> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.of(context).pushNamedAndRemoveUntil(
-                            registerRoute,
-                            (route) => false,
-                          );
+                          context.go('/sign-up');
                         },
                         child: const Text(
                           'Sign up',

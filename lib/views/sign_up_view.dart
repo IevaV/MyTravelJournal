@@ -1,20 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/components/auth_components/auth_input_field.dart';
 import 'package:mytraveljournal/constants/color_constants.dart';
-import 'dart:developer' as devtools show log;
-import 'package:mytraveljournal/constants/routes.dart';
 import 'package:mytraveljournal/services/auth/auth_exceptions.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
 import 'package:mytraveljournal/utilities/show_error_dialog.dart';
 
-class RegisterView extends StatefulWidget {
-  const RegisterView({super.key});
+class SignUpView extends StatefulWidget {
+  const SignUpView({super.key});
 
   @override
-  State<RegisterView> createState() => _RegisterViewState();
+  State<SignUpView> createState() => _SignUpViewState();
 }
 
-class _RegisterViewState extends State<RegisterView> {
+class _SignUpViewState extends State<SignUpView> {
   late final TextEditingController _email;
   late final TextEditingController _password;
   late final TextEditingController _passwordConfirm;
@@ -64,90 +63,6 @@ class _RegisterViewState extends State<RegisterView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Padding(
-                  //   padding: const EdgeInsets.symmetric(
-                  //       horizontal: 40.0, vertical: 10),
-                  //   child: PhysicalModel(
-                  //     borderRadius: BorderRadius.circular(50),
-                  //     color: ColorConstants.primaryYellow,
-                  //     elevation: 5.0,
-                  //     shadowColor: ColorConstants.assetColorBlack,
-                  //     child: TextField(
-                  //       controller: _email,
-                  //       enableSuggestions: false,
-                  //       autocorrect: false,
-                  //       keyboardType: TextInputType.emailAddress,
-                  //       decoration: InputDecoration(
-                  //         hintStyle: const TextStyle(
-                  //           color: ColorConstants.turquoisePlaceholderText,
-                  //         ),
-                  //         hintText: 'Enter your email here',
-                  //         border: OutlineInputBorder(
-                  //           borderRadius: BorderRadius.circular(50.0),
-                  //           borderSide: BorderSide.none,
-                  //         ),
-                  //         filled: true,
-                  //         fillColor: ColorConstants.yellowPlaceholderBackground,
-                  //       ),
-                  //     ),
-                  //   ),
-                  // ),
-                  // Padding(
-                  //   padding: const EdgeInsets.symmetric(
-                  //       horizontal: 40.0, vertical: 10),
-                  //   child: PhysicalModel(
-                  //     borderRadius: BorderRadius.circular(50),
-                  //     color: ColorConstants.primaryYellow,
-                  //     elevation: 5.0,
-                  //     shadowColor: ColorConstants.assetColorBlack,
-                  //     child: TextField(
-                  //       controller: _password,
-                  //       obscureText: true,
-                  //       enableSuggestions: false,
-                  //       autocorrect: false,
-                  //       decoration: InputDecoration(
-                  //         hintStyle: const TextStyle(
-                  //           color: ColorConstants.turquoisePlaceholderText,
-                  //         ),
-                  //         hintText: 'Enter your password here',
-                  //         border: OutlineInputBorder(
-                  //           borderRadius: BorderRadius.circular(50.0),
-                  //           borderSide: BorderSide.none,
-                  //         ),
-                  //         filled: true,
-                  //         fillColor: ColorConstants.yellowPlaceholderBackground,
-                  //       ),
-                  //     ),
-                  //   ),
-                  // ),
-                  // Padding(
-                  //   padding: const EdgeInsets.symmetric(
-                  //       horizontal: 40.0, vertical: 10),
-                  //   child: PhysicalModel(
-                  //     borderRadius: BorderRadius.circular(50),
-                  //     color: ColorConstants.primaryYellow,
-                  //     elevation: 5.0,
-                  //     shadowColor: ColorConstants.assetColorBlack,
-                  //     child: TextField(
-                  //       controller: _passwordConfirm,
-                  //       obscureText: true,
-                  //       enableSuggestions: false,
-                  //       autocorrect: false,
-                  //       decoration: InputDecoration(
-                  //         hintStyle: const TextStyle(
-                  //           color: ColorConstants.turquoisePlaceholderText,
-                  //         ),
-                  //         hintText: 'Confirm your password here',
-                  //         border: OutlineInputBorder(
-                  //           borderRadius: BorderRadius.circular(50.0),
-                  //           borderSide: BorderSide.none,
-                  //         ),
-                  //         filled: true,
-                  //         fillColor: ColorConstants.yellowPlaceholderBackground,
-                  //       ),
-                  //     ),
-                  //   ),
-                  // ),
                   AuthInputField(
                     textController: _email,
                     hintText: 'Enter your email here',
@@ -179,9 +94,10 @@ class _RegisterViewState extends State<RegisterView> {
                         try {
                           await AuthService.firebase()
                               .createUser(email: email, password: password);
+                          //TODO Add user to db
                           AuthService.firebase().sendEmailVerification();
                           if (context.mounted) {
-                            Navigator.of(context).pushNamed(verifyEmailRoute);
+                            context.go('/verify-email');
                           }
                         } on WeakPasswordAuthException {
                           showErrorDialog(context, 'Weak password');
@@ -232,10 +148,7 @@ class _RegisterViewState extends State<RegisterView> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.of(context).pushNamedAndRemoveUntil(
-                            loginRoute,
-                            (route) => false,
-                          );
+                          context.go('/sign-in');
                         },
                         child: const Text(
                           'Sign in',
