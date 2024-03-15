@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/constants/color_constants.dart';
-
-import '../constants/routes.dart';
 
 class WelcomeView extends StatefulWidget {
   const WelcomeView({super.key});
@@ -13,10 +12,6 @@ class WelcomeView extends StatefulWidget {
 class _WelcomeView extends State<WelcomeView> {
   @override
   Widget build(BuildContext context) {
-    // const IconData menuBookOutlined =
-    //     IconData(0xf1c2, fontFamily: 'MaterialIcons');
-    // const IconData locationPin = IconData(0xe3ac, fontFamily: 'MaterialIcons');
-
     return Scaffold(
       backgroundColor: ColorConstants.primaryYellow,
       body: SafeArea(
@@ -76,9 +71,7 @@ class _WelcomeView extends State<WelcomeView> {
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: ElevatedButton(
-                        onPressed: () => Navigator.of(context)
-                            .pushNamedAndRemoveUntil(
-                                loginRoute, (route) => false),
+                        onPressed: () => context.go('/sign-in'),
                         style: ButtonStyle(
                           minimumSize: MaterialStateProperty.all(
                             const Size(200, 50),
@@ -105,9 +98,7 @@ class _WelcomeView extends State<WelcomeView> {
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: OutlinedButton(
-                        onPressed: () => Navigator.of(context)
-                            .pushNamedAndRemoveUntil(
-                                registerRoute, (route) => false),
+                        onPressed: () => context.go('/sign-up'),
                         style: ButtonStyle(
                           minimumSize: MaterialStateProperty.all(
                             const Size(200, 50),

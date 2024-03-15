@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
-import 'package:mytraveljournal/views/add_new_trip_view.dart';
+import 'package:mytraveljournal/views/future_trips/future_trips_view.dart';
+import 'package:mytraveljournal/views/future_trips/add_future_trip_view.dart';
 import 'package:mytraveljournal/views/home_view.dart';
-import 'package:mytraveljournal/views/landing_view.dart';
-import 'package:mytraveljournal/views/login_view.dart';
-import 'package:mytraveljournal/views/register_view.dart';
-import 'package:mytraveljournal/views/trip_memory_view.dart';
+import 'package:mytraveljournal/views/sign_in_view.dart';
+import 'package:mytraveljournal/views/my_profile_view.dart';
+import 'package:mytraveljournal/views/sign_up_view.dart';
 import 'package:mytraveljournal/views/verify_email_view.dart';
 import 'package:mytraveljournal/views/welcome_view.dart';
-import 'constants/routes.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +19,7 @@ void main() async {
     if (user.isEmailVerified) {
       initRoute = '/home';
     } else {
-      initRoute = '/verifyEmail';
+      initRoute = '/verify-email';
     }
   } else {
     initRoute = '/welcome';
@@ -41,6 +40,16 @@ void main() async {
               path: '/home',
               builder: (context, state) => const HomeView(),
             ),
+            GoRoute(
+              parentNavigatorKey: shellNavigatorKey,
+              path: '/plan',
+              builder: (context, state) => const FutureTripsView(),
+            ),
+            GoRoute(
+              parentNavigatorKey: shellNavigatorKey,
+              path: '/profile',
+              builder: (context, state) => const MyProfileView(),
+            ),
           ],
           builder: (context, state, child) {
             return BottomNavigationBarScaffold(child: child);
@@ -52,8 +61,23 @@ void main() async {
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
-        path: '/verifyEmail',
+        path: '/sign-in',
+        builder: (context, state) => const SignInView(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/sign-up',
+        builder: (context, state) => const SignUpView(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/verify-email',
         builder: (context, state) => const VerifyEmailView(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/add-future-trip',
+        builder: (context, state) => const AddFutureTripView(),
       ),
     ],
   );
@@ -85,6 +109,12 @@ class _BottomNavigationBarScaffoldState
         context.go('/home');
         break;
       case 1:
+        context.go('/plan');
+        break;
+      case 2:
+        context.go('/memories');
+        break;
+      case 3:
         context.go('/profile');
         break;
       default:
@@ -104,11 +134,19 @@ class _BottomNavigationBarScaffoldState
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home),
-            label: '',
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.edit_location_alt),
+            label: 'Plan',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.auto_stories),
+            label: 'Memories',
           ),
           NavigationDestination(
             icon: Icon(Icons.person),
-            label: '',
+            label: 'Profile',
           ),
         ],
         selectedIndex: currentIndex,
