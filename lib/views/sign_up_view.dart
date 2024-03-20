@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/components/auth_components/auth_input_field.dart';
 import 'package:mytraveljournal/constants/color_constants.dart';
 import 'package:mytraveljournal/services/auth/auth_exceptions.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
+import 'package:mytraveljournal/services/auth/auth_user.dart';
+import 'package:mytraveljournal/services/firestore/user/user_service.dart';
 import 'package:mytraveljournal/utilities/show_error_dialog.dart';
 
 class SignUpView extends StatefulWidget {
@@ -14,24 +17,64 @@ class SignUpView extends StatefulWidget {
 }
 
 class _SignUpViewState extends State<SignUpView> {
+  late final TextEditingController _username;
   late final TextEditingController _email;
   late final TextEditingController _password;
   late final TextEditingController _passwordConfirm;
+  bool isUsernameValid = false;
+  UserService userService = UserService();
+  dynamic usernameErrorMessage;
+  dynamic usernameAvailable;
+  TextStyle usernameAvailabilityStyle = const TextStyle();
+  RegExp usernameRegex = RegExp(r'^[a-z]{1}(_?[a-z0-9]+)*$');
 
   @override
   void initState() {
+    _username = TextEditingController();
     _email = TextEditingController();
     _password = TextEditingController();
     _passwordConfirm = TextEditingController();
+    userService.listenToUserNames();
     super.initState();
   }
 
   @override
   void dispose() {
+    _username.dispose();
     _email.dispose();
     _password.dispose();
     _passwordConfirm.dispose();
     super.dispose();
+  }
+
+  // Validates user input for username field
+  void usernameValidation(String username) {
+    if (username.length < 4) {
+      setState(() {
+        usernameAvailable = null;
+        usernameErrorMessage = 'Username must be at least 4 characters long';
+        isUsernameValid = false;
+      });
+      // TODO add dynamic error messages for incorrect username input
+    } else if (!usernameRegex.hasMatch(username)) {
+      setState(() {
+        usernameAvailable = null;
+        usernameErrorMessage = "Username doesn't match allowed formatting";
+        isUsernameValid = false;
+      });
+    } else if (userService.allUsernameList.contains(username)) {
+      setState(() {
+        usernameAvailable = null;
+        usernameErrorMessage = 'username is taken';
+        isUsernameValid = false;
+      });
+    } else {
+      setState(() {
+        usernameAvailable = 'username is available';
+        usernameErrorMessage = null;
+        isUsernameValid = true;
+      });
+    }
   }
 
   @override
@@ -39,30 +82,47 @@ class _SignUpViewState extends State<SignUpView> {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: ColorConstants.primaryYellow,
+      appBar: AppBar(
+        title: const Text('Create Account'),
+        centerTitle: true,
+      ),
       body: SafeArea(
         child: Column(
           children: [
-            Flexible(
-              flex: 1,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Text(
-                    'CREATE ACCOUNT',
-                    style: TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                      color: ColorConstants.assetColorWhite,
-                    ),
-                  ),
-                ],
-              ),
-            ),
             Flexible(
               flex: 2,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  TextField(
+                    controller: _username,
+                    enableSuggestions: false,
+                    autocorrect: false,
+                    maxLength: 30,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'\w')),
+                    ],
+                    onChanged: (usernameInputText) {
+                      usernameInputText = usernameInputText.toLowerCase();
+                      _username.value = TextEditingValue(
+                        text: usernameInputText,
+                        selection: _username.selection,
+                      );
+                      usernameValidation(usernameInputText);
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Username',
+                      hintText: 'Enter your username here',
+                      labelStyle: const TextStyle(color: Colors.black),
+                      helperText: usernameAvailable,
+                      helperStyle: const TextStyle(
+                        color: Colors.green,
+                      ),
+                      errorText: usernameErrorMessage,
+                      filled: true,
+                      fillColor: ColorConstants.yellowPlaceholderBackground,
+                    ),
+                  ),
                   AuthInputField(
                     textController: _email,
                     hintText: 'Enter your email here',
@@ -82,20 +142,26 @@ class _SignUpViewState extends State<SignUpView> {
               ),
             ),
             Flexible(
-              flex: 2,
+              flex: 1,
               child: Column(
                 children: [
                   TextButton(
                     onPressed: () async {
+                      if (!isUsernameValid) {
+                        return showErrorDialog(context, 'Invalid username');
+                      }
+                      final username = _username.text;
                       final email = _email.text;
                       final password = _password.text;
                       final passwordConfirm = _passwordConfirm.text;
                       if (password == passwordConfirm) {
                         try {
-                          await AuthService.firebase()
+                          AuthUser user = await AuthService.firebase()
                               .createUser(email: email, password: password);
-                          //TODO Add user to db
                           AuthService.firebase().sendEmailVerification();
+                          userService.addUsername(username, user.uid);
+                          userService.addUser(username, user.uid);
+                          await userService.usernameListener.cancel();
                           if (context.mounted) {
                             context.go('/verify-email');
                           }
@@ -148,6 +214,7 @@ class _SignUpViewState extends State<SignUpView> {
                       ),
                       TextButton(
                         onPressed: () {
+                          userService.cancelListenToUsernames();
                           context.go('/sign-in');
                         },
                         child: const Text(
