@@ -38,9 +38,6 @@ class UserService {
           allUsernameList.add(docSnapshot.id);
         }
       },
-      onDone: () {
-        devtools.log("I'm done listening!");
-      },
     );
   }
 

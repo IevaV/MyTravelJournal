@@ -161,6 +161,7 @@ class _SignUpViewState extends State<SignUpView> {
                           AuthService.firebase().sendEmailVerification();
                           userService.addUsername(username, user.uid);
                           userService.addUser(username, user.uid);
+                          userService.cancelListenToUsernames();
                           await userService.usernameListener.cancel();
                           if (context.mounted) {
                             context.go('/verify-email');
