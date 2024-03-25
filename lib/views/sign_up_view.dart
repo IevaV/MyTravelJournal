@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/components/auth_components/auth_input_field.dart';
 import 'package:mytraveljournal/constants/color_constants.dart';
+import 'package:mytraveljournal/locators.dart';
 import 'package:mytraveljournal/services/auth/auth_exceptions.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
 import 'package:mytraveljournal/services/auth/auth_user.dart';
@@ -22,11 +23,11 @@ class _SignUpViewState extends State<SignUpView> {
   late final TextEditingController _password;
   late final TextEditingController _passwordConfirm;
   bool isUsernameValid = false;
-  UserService userService = UserService();
   dynamic usernameErrorMessage;
   dynamic usernameAvailable;
   TextStyle usernameAvailabilityStyle = const TextStyle();
   RegExp usernameRegex = RegExp(r'^[a-z]{1}(_?[a-z0-9]+)*$');
+  UserService userService = getIt<UserService>();
 
   @override
   void initState() {

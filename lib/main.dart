@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mytraveljournal/locators.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
+import 'package:mytraveljournal/services/auth/auth_user.dart';
 import 'package:mytraveljournal/views/future_trips/future_trips_view.dart';
 import 'package:mytraveljournal/views/future_trips/add_future_trip_view.dart';
 import 'package:mytraveljournal/views/home_view.dart';
@@ -12,10 +14,12 @@ import 'package:mytraveljournal/views/welcome_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  initializeLocators();
   final String initRoute;
   await AuthService.firebase().initialize();
   final user = AuthService.firebase().currentUser;
   if (user != null) {
+    getIt.registerSingleton<AuthUser>(user);
     if (user.isEmailVerified) {
       initRoute = '/home';
     } else {

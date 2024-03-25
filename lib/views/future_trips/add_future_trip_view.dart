@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/components/ui_components/date_picker.dart';
-import 'package:mytraveljournal/services/auth/auth_service.dart';
-import 'package:mytraveljournal/services/auth/firebase_auth_provider.dart';
+import 'package:mytraveljournal/locators.dart';
+import 'package:mytraveljournal/services/auth/auth_user.dart';
 import 'dart:developer' as devtools show log;
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 
@@ -37,6 +37,8 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
 
   @override
   Widget build(BuildContext context) {
+    TripService tripService = getIt<TripService>();
+    AuthUser user = getIt<AuthUser>();
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -84,8 +86,8 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                   onPressed: () {
                     context.go('/plan-trip');
                     devtools.log('Trip created');
-                    TripService().addNewTrip(
-                        AuthService.firebase().currentUser!.uid,
+                    tripService.addNewTrip(
+                        user.uid,
                         _title.text,
                         _description.text,
                         selectedDates['startDate']!,

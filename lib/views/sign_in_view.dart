@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/constants/routes.dart';
+import 'package:mytraveljournal/main.dart';
 import 'package:mytraveljournal/services/auth/auth_exceptions.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
+import 'package:mytraveljournal/services/auth/auth_user.dart';
 import '../components/auth_components/auth_input_field.dart';
 import '../constants/color_constants.dart';
 import '../utilities/show_error_dialog.dart';
@@ -111,6 +114,7 @@ class _SignInViewState extends State<SignInView> {
                         final user = AuthService.firebase().currentUser;
                         if ((user?.isEmailVerified ?? false) &&
                             context.mounted) {
+                          GetIt.I.registerSingleton<AuthUser>(user!);
                           context.go('/home');
                         } else {
                           context.go('/verify-email');
