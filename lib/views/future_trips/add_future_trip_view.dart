@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/components/ui_components/date_picker.dart';
+import 'package:mytraveljournal/locator.dart';
+import 'package:mytraveljournal/models/trip.dart';
+import 'package:mytraveljournal/models/user.dart';
 import 'dart:developer' as devtools show log;
+import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 
 class AddFutureTripView extends StatefulWidget {
   const AddFutureTripView({super.key});
@@ -14,6 +18,7 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
   late final TextEditingController _title;
   late final TextEditingController _description;
   late final TextEditingController _date;
+  final Map<String, String> selectedDates = {};
 
   @override
   void initState() {
@@ -33,8 +38,14 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
 
   @override
   Widget build(BuildContext context) {
+    TripService tripService = getIt<TripService>();
+    User user = getIt<User>();
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('Create New Trip'),
+        centerTitle: true,
+      ),
       body: SafeArea(
         child: Center(
           child: Column(
@@ -64,6 +75,7 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                 padding: const EdgeInsets.all(10.0),
                 child: DatePicker(
                   textController: _date,
+                  pickedDates: selectedDates,
                 ),
               ),
               FilledButton(
@@ -72,10 +84,24 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                   },
                   child: const Text('Cancel')),
               FilledButton(
-                  onPressed: () => {
-                        //context.go('/plan-trip')
-                        devtools.log('Trip created')
-                      },
+                  onPressed: () {
+                    devtools.log('Trip created');
+                    tripService.addNewTrip(
+                      user.uid,
+                      _title.text,
+                      _description.text,
+                      selectedDates['startDate']!,
+                      selectedDates['endDate']!,
+                    );
+                    Trip trip = Trip(
+                      title: _title.text,
+                      description: _description.text,
+                      startDate: selectedDates['startDate']!,
+                      endDate: selectedDates['endDate']!,
+                    );
+                    user.addTrip(trip);
+                    context.go('/plan-future-trip', extra: trip);
+                  },
                   child: const Text('Next')),
             ],
           ),

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mytraveljournal/locator.dart';
+import 'package:mytraveljournal/models/trip.dart';
+import 'package:mytraveljournal/models/user.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
 import 'package:mytraveljournal/views/future_trips/future_trips_view.dart';
 import 'package:mytraveljournal/views/future_trips/add_future_trip_view.dart';
+import 'package:mytraveljournal/views/future_trips/plan_future_trip_view.dart';
 import 'package:mytraveljournal/views/home_view.dart';
 import 'package:mytraveljournal/views/sign_in_view.dart';
 import 'package:mytraveljournal/views/my_profile_view.dart';
@@ -12,10 +16,12 @@ import 'package:mytraveljournal/views/welcome_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  initializeLocators();
   final String initRoute;
   await AuthService.firebase().initialize();
   final user = AuthService.firebase().currentUser;
   if (user != null) {
+    getIt<User>().assignUserData(user.uid);
     if (user.isEmailVerified) {
       initRoute = '/home';
     } else {
@@ -78,6 +84,16 @@ void main() async {
         parentNavigatorKey: rootNavigatorKey,
         path: '/add-future-trip',
         builder: (context, state) => const AddFutureTripView(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/plan-future-trip',
+        builder: (context, state) {
+          Trip trip = state.extra as Trip;
+          return PlanFutureTripView(
+            trip: trip,
+          );
+        },
       ),
     ],
   );
