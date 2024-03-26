@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/components/ui_components/date_picker.dart';
-import 'package:mytraveljournal/locators.dart';
-import 'package:mytraveljournal/services/auth/auth_user.dart';
+import 'package:mytraveljournal/locator.dart';
+import 'package:mytraveljournal/models/trip.dart';
+import 'package:mytraveljournal/models/user.dart';
 import 'dart:developer' as devtools show log;
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 
@@ -38,7 +39,7 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
   @override
   Widget build(BuildContext context) {
     TripService tripService = getIt<TripService>();
-    AuthUser user = getIt<AuthUser>();
+    User user = getIt<User>();
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -84,14 +85,22 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                   child: const Text('Cancel')),
               FilledButton(
                   onPressed: () {
-                    context.go('/plan-trip');
                     devtools.log('Trip created');
                     tripService.addNewTrip(
-                        user.uid,
-                        _title.text,
-                        _description.text,
-                        selectedDates['startDate']!,
-                        selectedDates['endDate']!);
+                      user.uid,
+                      _title.text,
+                      _description.text,
+                      selectedDates['startDate']!,
+                      selectedDates['endDate']!,
+                    );
+                    Trip trip = Trip(
+                      title: _title.text,
+                      description: _description.text,
+                      startDate: selectedDates['startDate']!,
+                      endDate: selectedDates['endDate']!,
+                    );
+                    user.addTrip(trip);
+                    context.go('/plan-future-trip', extra: trip);
                   },
                   child: const Text('Next')),
             ],

@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/components/auth_components/auth_input_field.dart';
 import 'package:mytraveljournal/constants/color_constants.dart';
-import 'package:mytraveljournal/locators.dart';
+import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/services/auth/auth_exceptions.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
 import 'package:mytraveljournal/services/auth/auth_user.dart';

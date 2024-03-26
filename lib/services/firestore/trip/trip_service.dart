@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:developer' as devtools show log;
+import 'package:mytraveljournal/models/trip.dart';
 
 class TripService {
   TripService();
@@ -15,5 +15,20 @@ class TripService {
       "endDate": endDate,
     };
     _db.collection("users").doc(uid).collection("trips").add(data);
+  }
+
+  List<Trip> getUserTrips(String uid) {
+    List<Trip> userTrips = [];
+    _db
+        .collection("users")
+        .doc(uid)
+        .collection("trips")
+        .get()
+        .then((querySnapshot) {
+      for (var trip in querySnapshot.docs) {
+        userTrips.add(Trip.fromFirestore(trip));
+      }
+    });
+    return userTrips;
   }
 }

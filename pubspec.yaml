@@ -41,6 +41,7 @@ dependencies:
   go_router: ^13.2.1
   cloud_firestore: ^4.15.9
   get_it: ^7.6.7
+  watch_it: ^1.4.1
 
 dev_dependencies:
   flutter_test:
