@@ -8,7 +8,7 @@ import 'package:mytraveljournal/services/auth/auth_exceptions.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
 import 'package:mytraveljournal/services/auth/auth_user.dart';
 import 'package:mytraveljournal/services/firestore/user/user_service.dart';
-import 'package:mytraveljournal/utilities/show_error_dialog.dart';
+import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
 
 class SignUpView extends StatefulWidget {
   const SignUpView({super.key});

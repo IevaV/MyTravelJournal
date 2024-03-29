@@ -85,4 +85,59 @@ class TripService {
         .doc(dayId)
         .update(data);
   }
+
+  batchUpdateAfterTripDayDeletion(String uid, String tripId, String dayId,
+      List<TripDay> tripDays, DateTime newEndDate) {
+    final batch = _db.batch();
+
+    // Find day to delete and add it to batch
+    var dayRef = _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId);
+    batch.delete(dayRef);
+
+    // Update dayNumber and date for the remaining days after deletion
+    for (var day in tripDays) {
+      var updateDayRef = _db
+          .collection('users')
+          .doc(uid)
+          .collection('trips')
+          .doc(tripId)
+          .collection("days")
+          .doc(day.dayId);
+      batch
+          .update(updateDayRef, {"dayNumber": day.dayNumber, "date": day.date});
+    }
+
+    // Update trip endDate
+    var tripRef =
+        _db.collection('users').doc(uid).collection('trips').doc(tripId);
+    batch.update(tripRef, {"endDate": Timestamp.fromDate(newEndDate)});
+
+    batch.commit();
+  }
+
+  batchUpdateAfterTripDayReorder(
+      String uid, String tripId, List<TripDay> tripDays) {
+    final batch = _db.batch();
+
+    // Update dayNumber and date for days after reorder
+    for (var day in tripDays) {
+      var updateDayRef = _db
+          .collection('users')
+          .doc(uid)
+          .collection('trips')
+          .doc(tripId)
+          .collection("days")
+          .doc(day.dayId);
+      batch
+          .update(updateDayRef, {"dayNumber": day.dayNumber, "date": day.date});
+    }
+
+    batch.commit();
+  }
 }

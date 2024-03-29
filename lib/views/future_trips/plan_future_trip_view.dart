@@ -1,6 +1,7 @@
 import 'dart:math';
-
 import 'package:flutter/material.dart';
+import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
+import 'package:mytraveljournal/components/dialog_components/show_on_delete_dialog.dart';
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
@@ -63,14 +64,53 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                     for (final day in widget.trip.days)
                       Dismissible(
                         background: Container(
-                          color: Colors.green,
+                          color: Colors.redAccent,
                         ),
                         key: ValueKey<TripDay>(day),
-                        onDismissed: (DismissDirection direction) {
-                          setState(() {
-                            print('DELETES day');
-                            // items.removeAt(index);
-                          });
+                        direction: DismissDirection.endToStart,
+                        confirmDismiss: (direction) async {
+                          if (widget.trip.days.length == 1) {
+                            await showErrorDialog(context,
+                                'Failed to delete Day 1, trip must be at least 1 day long');
+                            return null;
+                          } else {
+                            return await showDeleteDialog(
+                                context, 'Day ${day.dayNumber.toString()}?');
+                          }
+                        },
+                        onDismissed: (DismissDirection direction) async {
+                          List<TripDay> tripDaysModified = widget.trip.days;
+                          DateTime updatedEndDate = widget.trip.endDate
+                              .subtract(const Duration(days: 1));
+                          tripDaysModified.removeAt(day.dayNumber - 1);
+                          for (var i = day.dayNumber - 1;
+                              i < tripDaysModified.length;
+                              i++) {
+                            tripDaysModified[i].dayNumber = i + 1;
+                            tripDaysModified[i].date = tripDaysModified[i]
+                                .date
+                                .subtract(const Duration(days: 1));
+                          }
+                          try {
+                            tripService.batchUpdateAfterTripDayDeletion(
+                                user.uid,
+                                widget.trip.tripId,
+                                day.dayId,
+                                tripDaysModified,
+                                updatedEndDate);
+                            setState(() {
+                              widget.trip.endDate = updatedEndDate;
+                              widget.trip.days = tripDaysModified;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Day ${day.dayNumber} deleted'),
+                                ),
+                              );
+                            });
+                          } catch (e) {
+                            await showErrorDialog(context,
+                                'Something went wrong, please try again later');
+                          }
                         },
                         child: ListTile(
                           key: ValueKey(day),
@@ -80,29 +120,32 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                         ),
                       )
                   ],
-                  onReorder: (oldIndex, newIndex) {
+                  onReorder: (oldIndex, newIndex) async {
                     if (oldIndex < newIndex) {
                       newIndex -= 1;
                     }
                     if (oldIndex != newIndex) {
-                      setState(() {
-                        List<DateTime> allTripDates = datesBetween(
-                            widget.trip.startDate, widget.trip.endDate);
-                        print("oldIndex: $oldIndex");
-                        print("newIndex: $newIndex");
-
-                        final TripDay item =
-                            widget.trip.days.removeAt(oldIndex);
-                        widget.trip.days.insert(newIndex, item);
-                        for (var i = min(oldIndex, newIndex);
-                            i <= max(oldIndex, newIndex);
-                            i++) {
-                          widget.trip.days[i].dayNumber = i + 1;
-                          widget.trip.days[i].date = allTripDates[i];
-                          Map<String, dynamic> dataToUpdate = { "dayNumber": widget.trip.days[i].dayNumber, "date": widget.trip.days[i].date };
-                          tripService.updateTripDay(user.uid, widget.trip.tripId, widget.trip.days[i].dayId, dataToUpdate);
-                        }
-                      });
+                      List<TripDay> tripDaysModified = widget.trip.days;
+                      List<DateTime> allTripDates = datesBetween(
+                          widget.trip.startDate, widget.trip.endDate);
+                      final TripDay item = tripDaysModified.removeAt(oldIndex);
+                      tripDaysModified.insert(newIndex, item);
+                      for (var i = min(oldIndex, newIndex);
+                          i <= max(oldIndex, newIndex);
+                          i++) {
+                        tripDaysModified[i].dayNumber = i + 1;
+                        tripDaysModified[i].date = allTripDates[i];
+                      }
+                      try {
+                        tripService.batchUpdateAfterTripDayReorder(
+                            user.uid, widget.trip.tripId, tripDaysModified);
+                        setState(() {
+                          widget.trip.days = tripDaysModified;
+                        });
+                      } catch (e) {
+                        await showErrorDialog(context,
+                            'Something went wrong, please try again later');
+                      }
                     }
                   },
                 ),

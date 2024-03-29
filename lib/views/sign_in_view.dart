@@ -7,7 +7,7 @@ import 'package:mytraveljournal/services/auth/auth_exceptions.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
 import '../components/auth_components/auth_input_field.dart';
 import '../constants/color_constants.dart';
-import '../utilities/show_error_dialog.dart';
+import '../components/dialog_components/show_error_dialog.dart';
 
 class SignInView extends StatefulWidget {
   const SignInView({super.key});
