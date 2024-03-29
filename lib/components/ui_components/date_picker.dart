@@ -5,7 +5,7 @@ class DatePicker extends StatelessWidget {
   const DatePicker(
       {super.key, required this.textController, required this.pickedDates});
   final TextEditingController textController;
-  final Map<String, String> pickedDates;
+  final Map<String, dynamic> pickedDates;
 
   Future<void> _selectStartDate(BuildContext context) async {
     final DateTimeRange? picked = await showDateRangePicker(
@@ -18,8 +18,8 @@ class DatePicker extends StatelessWidget {
     if (picked != null) {
       textController.text =
           "${picked.start.day}-${picked.start.month.toString().padLeft(2, '0')}-${picked.start.year} - ${picked.end.day}-${picked.end.month.toString().padLeft(2, '0')}-${picked.end.year}";
-      pickedDates['startDate'] = picked.start.toString();
-      pickedDates['endDate'] = picked.end.toString();
+      pickedDates['dates'] = picked;
+      // pickedDates['endDate'] = picked.end.toString();
     }
     devtools.log(picked.toString());
     devtools.log(picked!.start.toString());

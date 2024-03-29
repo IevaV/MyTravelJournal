@@ -18,7 +18,7 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
   late final TextEditingController _title;
   late final TextEditingController _description;
   late final TextEditingController _date;
-  final Map<String, String> selectedDates = {};
+  final Map<String, DateTimeRange?> selectedDates = {};
 
   @override
   void initState() {
@@ -84,20 +84,23 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                   },
                   child: const Text('Cancel')),
               FilledButton(
-                  onPressed: () {
+                  onPressed: () async {
                     devtools.log('Trip created');
-                    tripService.addNewTrip(
+                    final addedTrip = await tripService.addNewTrip(
                       user.uid,
                       _title.text,
                       _description.text,
-                      selectedDates['startDate']!,
-                      selectedDates['endDate']!,
+                      selectedDates['dates']!.start,
+                      selectedDates['dates']!.end,
                     );
+                    tripService.generateDaysForTrip(selectedDates['dates']!.start,
+                        selectedDates['dates']!.end, user.uid, addedTrip.id);
                     Trip trip = Trip(
+                      tripId: addedTrip.id,
                       title: _title.text,
                       description: _description.text,
-                      startDate: selectedDates['startDate']!,
-                      endDate: selectedDates['endDate']!,
+                      startDate: selectedDates['dates']!.start,
+                      endDate: selectedDates['dates']!.end,
                     );
                     user.addTrip(trip);
                     context.go('/plan-future-trip', extra: trip);
