@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:developer' as devtools show log;
 
@@ -31,7 +30,7 @@ class UserService {
   }
 
   // Listener for Usernames collection in firestore
-  listenToUserNames() async {
+  listenToUserNames() {
     usernameListener = db.collection("usernames").snapshots().listen(
       (querySnapshot) {
         for (var docSnapshot in querySnapshot.docs) {

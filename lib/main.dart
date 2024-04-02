@@ -21,7 +21,7 @@ void main() async {
   await AuthService.firebase().initialize();
   final user = AuthService.firebase().currentUser;
   if (user != null) {
-    getIt<User>().assignUserData(user.uid);
+    await getIt<User>().assignUserData(user.uid);
     if (user.isEmailVerified) {
       initRoute = '/home';
     } else {

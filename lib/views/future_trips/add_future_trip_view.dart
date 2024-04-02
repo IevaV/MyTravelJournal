@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
 import 'package:mytraveljournal/components/ui_components/date_picker.dart';
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/trip.dart';
+import 'package:mytraveljournal/models/trip_day.dart';
 import 'package:mytraveljournal/models/user.dart';
-import 'dart:developer' as devtools show log;
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 
 class AddFutureTripView extends StatefulWidget {
@@ -18,7 +19,10 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
   late final TextEditingController _title;
   late final TextEditingController _description;
   late final TextEditingController _date;
-  final Map<String, String> selectedDates = {};
+  final Map<String, DateTimeRange?> selectedDates = {};
+  bool _validateTitleInput = false;
+  bool _validateDescriptionInput = false;
+  bool _validateDateInput = false;
 
   @override
   void initState() {
@@ -55,9 +59,11 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                 padding: const EdgeInsets.all(10.0),
                 child: TextField(
                   controller: _title,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Title',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    errorText:
+                        _validateTitleInput ? "Title can't be empty" : null,
                   ),
                 ),
               ),
@@ -65,9 +71,12 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                 padding: const EdgeInsets.all(10.0),
                 child: TextField(
                   controller: _description,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Description',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    errorText: _validateDescriptionInput
+                        ? "Description can't be empty"
+                        : null,
                   ),
                 ),
               ),
@@ -76,6 +85,7 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                 child: DatePicker(
                   textController: _date,
                   pickedDates: selectedDates,
+                  validateSelectedDates: _validateDateInput,
                 ),
               ),
               FilledButton(
@@ -84,25 +94,40 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                   },
                   child: const Text('Cancel')),
               FilledButton(
-                  onPressed: () {
-                    devtools.log('Trip created');
-                    tripService.addNewTrip(
-                      user.uid,
-                      _title.text,
-                      _description.text,
-                      selectedDates['startDate']!,
-                      selectedDates['endDate']!,
-                    );
-                    Trip trip = Trip(
-                      title: _title.text,
-                      description: _description.text,
-                      startDate: selectedDates['startDate']!,
-                      endDate: selectedDates['endDate']!,
-                    );
-                    user.addTrip(trip);
-                    context.go('/plan-future-trip', extra: trip);
-                  },
-                  child: const Text('Next')),
+                onPressed: () async {
+                  setState(() {
+                    _validateTitleInput = _title.text.isEmpty;
+                    _validateDescriptionInput = _description.text.isEmpty;
+                    _validateDateInput = selectedDates['dates'] == null;
+                  });
+
+                  if (!_validateTitleInput &&
+                      !_validateDescriptionInput &&
+                      !_validateDateInput) {
+                    try {
+                      await tripService.batchUpdateAfterAddingNewTrip(
+                        user.uid,
+                        _title.text,
+                        _description.text,
+                        selectedDates['dates']!.start,
+                        selectedDates['dates']!.end,
+                      );
+                      Trip trip = await tripService.getLatestUserTrip(user.uid);
+                      context.push('/plan-future-trip', extra: trip);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('New trip added'),
+                        ),
+                      );
+                    } catch (e) {
+                      print(e);
+                      await showErrorDialog(context,
+                          'Something went wrong, please try again later');
+                    }
+                  }
+                },
+                child: const Text('Next'),
+              ),
             ],
           ),
         ),

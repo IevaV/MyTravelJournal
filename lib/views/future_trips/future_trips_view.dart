@@ -9,8 +9,7 @@ class FutureTripsView extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    List<Trip> userFutureTrips =
-        watchPropertyValue((User user) => user.userTrips);
+    List<Trip> userFutureTrips = watchIt<User>().userTrips;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -28,7 +27,7 @@ class FutureTripsView extends StatelessWidget with WatchItMixin {
                     itemCount: userFutureTrips.length,
                     itemBuilder: (BuildContext context, int index) {
                       return ListTile(
-                        title: Text('Trip ${userFutureTrips[index].title}'),
+                        title: Text(userFutureTrips[index].title),
                         onTap: () => GoRouter.of(context).push(
                             '/plan-future-trip',
                             extra: userFutureTrips[index]),

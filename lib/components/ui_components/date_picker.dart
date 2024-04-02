@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
-import 'dart:developer' as devtools show log;
 
 class DatePicker extends StatelessWidget {
   const DatePicker(
-      {super.key, required this.textController, required this.pickedDates});
+      {super.key,
+      required this.textController,
+      required this.pickedDates,
+      required this.validateSelectedDates});
   final TextEditingController textController;
-  final Map<String, String> pickedDates;
+  final Map<String, dynamic> pickedDates;
+  final bool validateSelectedDates;
 
   Future<void> _selectStartDate(BuildContext context) async {
     final DateTimeRange? picked = await showDateRangePicker(
@@ -18,12 +21,8 @@ class DatePicker extends StatelessWidget {
     if (picked != null) {
       textController.text =
           "${picked.start.day}-${picked.start.month.toString().padLeft(2, '0')}-${picked.start.year} - ${picked.end.day}-${picked.end.month.toString().padLeft(2, '0')}-${picked.end.year}";
-      pickedDates['startDate'] = picked.start.toString();
-      pickedDates['endDate'] = picked.end.toString();
+      pickedDates['dates'] = picked;
     }
-    devtools.log(picked.toString());
-    devtools.log(picked!.start.toString());
-    devtools.log(picked.end.toString());
   }
 
   @override
@@ -34,9 +33,12 @@ class DatePicker extends StatelessWidget {
       onTap: () {
         _selectStartDate(context);
       },
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         labelText: 'Start Date - End Date',
-        border: OutlineInputBorder(),
+        border: const OutlineInputBorder(),
+        errorText: validateSelectedDates
+            ? "Please select Trip start and end dates"
+            : null,
       ),
     );
   }
