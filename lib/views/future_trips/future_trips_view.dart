@@ -9,8 +9,7 @@ class FutureTripsView extends StatelessWidget with WatchItMixin {
 
   @override
   Widget build(BuildContext context) {
-    List<Trip> userFutureTrips =
-        watchPropertyValue((User user) => user.userTrips);
+    List<Trip> userFutureTrips = watchIt<User>().userTrips;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(

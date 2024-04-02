@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
 import 'package:mytraveljournal/components/dialog_components/show_on_delete_dialog.dart';
 import 'package:mytraveljournal/locator.dart';
@@ -28,6 +29,13 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
       appBar: AppBar(
         title: const Text('Plan Your Trip'),
         centerTitle: true,
+        leading: BackButton(
+          onPressed: () async {
+            while (context.canPop()) {
+              context.pop();
+            }
+          },
+        ),
       ),
       body: SafeArea(
         child: Center(
@@ -35,7 +43,7 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
             //mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Flexible(
-                flex: 1,
+                flex: 2,
                 child: Column(
                   children: [
                     Container(
@@ -58,7 +66,7 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                 ),
               ),
               Flexible(
-                flex: 1,
+                flex: 3,
                 child: ReorderableListView(
                   children: [
                     for (final day in widget.trip.days)
@@ -79,7 +87,8 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                           }
                         },
                         onDismissed: (DismissDirection direction) async {
-                          List<TripDay> tripDaysModified = widget.trip.days;
+                          List<TripDay> tripDaysModified =
+                              widget.trip.days.toList();
                           DateTime updatedEndDate = widget.trip.endDate
                               .subtract(const Duration(days: 1));
                           tripDaysModified.removeAt(day.dayNumber - 1);
@@ -92,7 +101,7 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                                 .subtract(const Duration(days: 1));
                           }
                           try {
-                            tripService.batchUpdateAfterTripDayDeletion(
+                            await tripService.batchUpdateAfterTripDayDeletion(
                                 user.uid,
                                 widget.trip.tripId,
                                 day.dayId,
@@ -125,7 +134,8 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                       newIndex -= 1;
                     }
                     if (oldIndex != newIndex) {
-                      List<TripDay> tripDaysModified = widget.trip.days;
+                      List<TripDay> tripDaysModified =
+                          widget.trip.days.toList();
                       List<DateTime> allTripDates = datesBetween(
                           widget.trip.startDate, widget.trip.endDate);
                       final TripDay item = tripDaysModified.removeAt(oldIndex);
@@ -137,7 +147,7 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                         tripDaysModified[i].date = allTripDates[i];
                       }
                       try {
-                        tripService.batchUpdateAfterTripDayReorder(
+                        await tripService.batchUpdateAfterTripDayReorder(
                             user.uid, widget.trip.tripId, tripDaysModified);
                         setState(() {
                           widget.trip.days = tripDaysModified;
@@ -150,6 +160,37 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                   },
                 ),
               ),
+              Flexible(
+                flex: 1,
+                child: FilledButton(
+                  onPressed: () async {
+                    try {
+                      int dayNumber = widget.trip.days.length + 1;
+                      DateTime newDate = widget.trip.days.last.date
+                          .add(const Duration(days: 1));
+                      await tripService.batchUpdateAfterAddingNewTripDay(
+                          user.uid, widget.trip.tripId, dayNumber, newDate);
+                      List<TripDay> updatedDaysList = await tripService
+                          .getTripDays(user.uid, widget.trip.tripId);
+                      setState(() {
+                        widget.trip.endDate = newDate;
+                        widget.trip.days = updatedDaysList.toList();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Day $dayNumber has been added!'),
+                          ),
+                        );
+                      });
+                    } catch (e) {
+                      if (context.mounted) {
+                        await showErrorDialog(context,
+                            'Something went wrong, please try again later');
+                      }
+                    }
+                  },
+                  child: const Text('Add new day'),
+                ),
+              )
             ],
           ),
         ),

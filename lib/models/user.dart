@@ -7,15 +7,15 @@ class User extends ChangeNotifier {
   User();
 
   late String uid;
-  late List<Trip> userTrips;
+  final List<Trip> userTrips = [];
 
   void addTrip(Trip trip) {
-    userTrips.add(trip);
+    userTrips.insert(0, trip);
     notifyListeners();
   }
 
-  void assignUserData(String uid) {
+  Future<void> assignUserData(String uid) async {
     this.uid = uid;
-    userTrips = getIt<TripService>().getUserTrips(uid);
+    getIt<TripService>().listenToUserTrips();
   }
 }

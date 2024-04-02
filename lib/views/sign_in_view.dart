@@ -113,7 +113,7 @@ class _SignInViewState extends State<SignInView> {
                         final user = AuthService.firebase().currentUser;
                         if ((user?.isEmailVerified ?? false) &&
                             context.mounted) {
-                          GetIt.I<User>().assignUserData(user!.uid);
+                          await GetIt.I<User>().assignUserData(user!.uid);
                           context.go('/home');
                         } else {
                           context.go('/verify-email');

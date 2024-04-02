@@ -1,50 +1,28 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
+import 'package:mytraveljournal/models/user.dart';
 import 'package:mytraveljournal/utilities/date_helper.dart';
 
 class TripService {
   TripService();
 
   final _db = FirebaseFirestore.instance;
+  late final StreamSubscription<QuerySnapshot> userTripListener;
 
-  Future<DocumentReference<Object?>> addNewTrip(String uid, String title,
-      String description, DateTime startDate, DateTime endDate) async {
-    final data = <String, dynamic>{
-      "title": title,
-      "description": description,
-      "startDate": Timestamp.fromDate(startDate),
-      "endDate": Timestamp.fromDate(endDate),
-    };
-    return await _db.collection("users").doc(uid).collection("trips").add(data);
-  }
-
-  List<Trip> getUserTrips(String uid) {
-    List<Trip> userTrips = [];
-    _db
-        .collection("users")
-        .doc(uid)
-        .collection("trips")
-        .get()
-        .then((querySnapshot) {
-      for (var trip in querySnapshot.docs) {
-        userTrips.add(Trip.fromFirestore(trip));
-      }
-    });
-    return userTrips;
-  }
-
-  List<TripDay> getTripDays(String uid, String tripId) {
+  Future<List<TripDay>> getTripDays(String uid, String tripId) async {
     List<TripDay> tripDays = [];
-    _db
+    await _db
         .collection("users")
         .doc(uid)
         .collection("trips")
         .doc(tripId)
         .collection("days")
         .orderBy('dayNumber')
-        .snapshots()
-        .forEach((querySnapshot) {
+        .get()
+        .then((querySnapshot) {
       for (var tripDay in querySnapshot.docs) {
         tripDays.add(TripDay.fromFirestore(tripDay));
       }
@@ -52,42 +30,57 @@ class TripService {
     return tripDays;
   }
 
-  addNewTripDay(String uid, String tripId, int dayNumber, DateTime date) async {
-    final data = <String, dynamic>{
-      "dayNumber": dayNumber,
-      "date": Timestamp.fromDate(date),
-    };
-    await _db
+  Future<Trip> getLatestUserTrip(String uid) {
+    return _db
         .collection("users")
         .doc(uid)
         .collection("trips")
-        .doc(tripId)
-        .collection("days")
-        .add(data);
+        .orderBy("createdAt", descending: true)
+        .limit(1)
+        .get()
+        .then((querySnapshot) async {
+      return await Trip.createTrip(
+          querySnapshot.docs.first.id, querySnapshot.docs.first.data());
+    });
   }
 
-  void generateDaysForTrip(
-      DateTime startDate, DateTime endDate, String uid, String tripId) async {
+  Future<void> batchUpdateAfterAddingNewTrip(String uid, String title,
+      String description, DateTime startDate, DateTime endDate) async {
+    final batch = _db.batch();
+
+    // Add new trip
+    var tripRef = _db.collection('users').doc(uid).collection('trips').doc();
+    final tripData = <String, dynamic>{
+      "title": title,
+      "description": description,
+      "startDate": Timestamp.fromDate(startDate),
+      "endDate": Timestamp.fromDate(endDate),
+      "createdAt": Timestamp.fromDate(DateTime.now()),
+    };
+    batch.set(tripRef, tripData);
+
+    // Add trip days to trip
     List<DateTime> dates = datesBetween(startDate, endDate);
     for (var i = 0; i < dates.length; i++) {
-      await addNewTripDay(uid, tripId, i + 1, dates[i]);
+      var tripDaysRef = _db
+          .collection('users')
+          .doc(uid)
+          .collection('trips')
+          .doc(tripRef.id)
+          .collection('days')
+          .doc();
+      final daysData = <String, dynamic>{
+        "dayNumber": i + 1,
+        "date": Timestamp.fromDate(dates[i]),
+      };
+      batch.set(tripDaysRef, daysData);
     }
+
+    await batch.commit();
   }
 
-  void updateTripDay(
-      String uid, String tripId, String dayId, Map<String, dynamic> data) {
-    _db
-        .collection('users')
-        .doc(uid)
-        .collection('trips')
-        .doc(tripId)
-        .collection("days")
-        .doc(dayId)
-        .update(data);
-  }
-
-  batchUpdateAfterTripDayDeletion(String uid, String tripId, String dayId,
-      List<TripDay> tripDays, DateTime newEndDate) {
+  Future<void> batchUpdateAfterTripDayDeletion(String uid, String tripId,
+      String dayId, List<TripDay> tripDays, DateTime newEndDate) async {
     final batch = _db.batch();
 
     // Find day to delete and add it to batch
@@ -118,11 +111,11 @@ class TripService {
         _db.collection('users').doc(uid).collection('trips').doc(tripId);
     batch.update(tripRef, {"endDate": Timestamp.fromDate(newEndDate)});
 
-    batch.commit();
+    await batch.commit();
   }
 
-  batchUpdateAfterTripDayReorder(
-      String uid, String tripId, List<TripDay> tripDays) {
+  Future<void> batchUpdateAfterTripDayReorder(
+      String uid, String tripId, List<TripDay> tripDays) async {
     final batch = _db.batch();
 
     // Update dayNumber and date for days after reorder
@@ -138,6 +131,63 @@ class TripService {
           .update(updateDayRef, {"dayNumber": day.dayNumber, "date": day.date});
     }
 
-    batch.commit();
+    await batch.commit();
+  }
+
+  Future<void> batchUpdateAfterAddingNewTripDay(
+      String uid, String tripId, int dayNumber, DateTime date) async {
+    final batch = _db.batch();
+    final data = <String, dynamic>{
+      "dayNumber": dayNumber,
+      "date": Timestamp.fromDate(date),
+    };
+
+    // Add new day
+    var tripDayRef = _db
+        .collection("users")
+        .doc(uid)
+        .collection("trips")
+        .doc(tripId)
+        .collection("days")
+        .doc();
+    batch.set(tripDayRef, data);
+
+    // Update trip endDate
+    var tripRef =
+        _db.collection('users').doc(uid).collection('trips').doc(tripId);
+    batch.update(tripRef, {"endDate": Timestamp.fromDate(date)});
+
+    await batch.commit();
+  }
+
+  // Listener for Usernames collection in firestore
+  void listenToUserTrips() {
+    User user = getIt<User>();
+    userTripListener = _db
+        .collection("users")
+        .doc(user.uid)
+        .collection("trips")
+        .orderBy('createdAt')
+        .snapshots()
+        .listen(
+      (querySnapshot) async {
+        for (var docSnapshot in querySnapshot.docChanges) {
+          switch (docSnapshot.type) {
+            case DocumentChangeType.added:
+              user.addTrip(await Trip.createTrip(
+                  docSnapshot.doc.id, docSnapshot.doc.data()));
+              break;
+            case DocumentChangeType.modified:
+              break;
+            case DocumentChangeType.removed:
+              break;
+          }
+        }
+      },
+    );
+  }
+
+  void cancelListenToUserTrips() async {
+    await userTripListener.cancel();
   }
 }
