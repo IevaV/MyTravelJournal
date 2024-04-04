@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/trip.dart';
+import 'package:mytraveljournal/models/trip_day.dart';
 import 'package:mytraveljournal/models/user.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
 import 'package:mytraveljournal/views/future_trips/future_trips_view.dart';
 import 'package:mytraveljournal/views/future_trips/add_future_trip_view.dart';
+import 'package:mytraveljournal/views/future_trips/plan_future_trip_day_view.dart';
 import 'package:mytraveljournal/views/future_trips/plan_future_trip_view.dart';
 import 'package:mytraveljournal/views/home_view.dart';
 import 'package:mytraveljournal/views/sign_in_view.dart';
@@ -92,6 +94,16 @@ void main() async {
           Trip trip = state.extra as Trip;
           return PlanFutureTripView(
             trip: trip,
+          );
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/plan-future-trip-day',
+        builder: (context, state) {
+          TripDay tripDay = state.extra as TripDay;
+          return PlanFutureTripDayView(
+            tripDay: tripDay,
           );
         },
       ),

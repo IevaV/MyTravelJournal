@@ -126,6 +126,8 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                           title: Text("Day ${day.dayNumber}"),
                           subtitle:
                               Text("${day.dayId} and ${day.date.toString()}"),
+                          onTap: () => GoRouter.of(context)
+                              .push('/plan-future-trip-day', extra: day),
                         ),
                       )
                   ],

@@ -4,7 +4,6 @@ import 'package:mytraveljournal/components/dialog_components/show_error_dialog.d
 import 'package:mytraveljournal/components/ui_components/date_picker.dart';
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/trip.dart';
-import 'package:mytraveljournal/models/trip_day.dart';
 import 'package:mytraveljournal/models/user.dart';
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 
