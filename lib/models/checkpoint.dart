@@ -1,8 +1,11 @@
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 class Checkpoint {
-  Checkpoint(this.title, this.location, this.arrivalTime, this.departureTime);
+  Checkpoint(this.title, this.coordinates, this.marker);
 
   String title;
-  String location;
-  DateTime arrivalTime;
-  DateTime departureTime;
+  LatLng coordinates;
+  late DateTime arrivalTime;
+  late DateTime departureTime;
+  Marker marker;
 }

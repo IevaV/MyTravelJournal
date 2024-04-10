@@ -4,12 +4,16 @@ import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
 import 'package:mytraveljournal/locator.dart';
+import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
 import 'package:mytraveljournal/services/google_maps/google_maps_service.dart';
 import 'package:mytraveljournal/services/location/location_service.dart';
 import 'package:http/http.dart' as http;
+import 'dart:developer' as devtools show log;
+import 'package:watch_it/watch_it.dart';
 
-class PlanFutureTripDayView extends StatefulWidget {
+class PlanFutureTripDayView extends StatefulWidget
+    with WatchItStatefulWidgetMixin {
   const PlanFutureTripDayView({super.key, required this.tripDay});
 
   final TripDay tripDay;
@@ -29,6 +33,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
   late final SearchController searchController;
   List<dynamic> autoCompleteSuggestions = [];
   List<Marker> markers = [];
+  Marker? tempMarker;
 
   @override
   void initState() {
@@ -69,13 +74,114 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     // });
   }
 
+  void addMarker(LatLng latLng) {
+    setState(() {
+      int checkpointNumber =
+          tempMarker == null ? markers.length + 1 : markers.length;
+      MarkerId markerId = MarkerId('Checkpoint $checkpointNumber');
+      Marker selectedLocationMarker = Marker(
+        markerId: markerId,
+        position: latLng,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
+      );
+      if (tempMarker == null) {
+        devtools.log(markers.length.toString());
+        tempMarker = selectedLocationMarker;
+        markers.add(selectedLocationMarker);
+      } else {
+        markers.removeLast();
+        tempMarker = selectedLocationMarker;
+        markers.add(selectedLocationMarker);
+      }
+      markers.forEach((element) {
+        devtools.log(element.markerId.toString());
+      });
+      devtools.log(markers.length.toString());
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(days: 365),
+          content: Column(
+            children: [
+              Text('Do you want to add Checkpoint ${markers.length}?'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  FilledButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).clearSnackBars();
+                      setState(() {
+                        markers.removeLast();
+                        tempMarker = null;
+                      });
+                    },
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).clearSnackBars();
+                      Marker marker = Marker(
+                        markerId: markerId,
+                        position: latLng,
+                        onTap: () => addedMarkerModal(checkpointNumber),
+                      );
+                      Checkpoint checkpoint = Checkpoint(
+                          selectedLocationMarker.markerId.value,
+                          latLng,
+                          marker);
+                      // TODO add to db checkpoint
+                      widget.tripDay.addCheckpoint(checkpoint);
+                      markers.removeLast();
+                      markers.add(marker);
+                      tempMarker = null;
+                    },
+                    child: const Text('Add'),
+                  )
+                ],
+              )
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  void addedMarkerModal(int checkpointNumber) {
+    showModalBottomSheet(
+      context: context,
+      // isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) {
+        return Center(
+          child: Column(
+            children: [
+              Text(widget.tripDay.checkpoints[checkpointNumber - 1].title),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    List<Checkpoint> checkpoints = watch(widget.tripDay).checkpoints;
+    callOnce(
+      (context) {
+        markers = checkpoints.map((checkpoint) => checkpoint.marker).toList();
+      },
+    );
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text('Day ${widget.tripDay.dayNumber}'),
         centerTitle: true,
+        leading: BackButton(
+          onPressed: () {
+            ScaffoldMessenger.of(context).clearSnackBars();
+            context.pop();
+          },
+        ),
       ),
       body: SafeArea(
         child: Column(
@@ -84,18 +190,25 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
               flex: 1,
               child: Stack(
                 children: [
-                  GoogleMap(
-                    mapType: MapType.hybrid,
-                    onMapCreated: (GoogleMapController controller) {
-                      _onMapCreated(controller);
-                    },
-                    initialCameraPosition: CameraPosition(
-                      target: initialCameraPosition,
-                      zoom: 14.4746,
-                    ),
-                    myLocationEnabled: true,
-                    markers: Set<Marker>.of(markers),
-                  ),
+                  LayoutBuilder(builder:
+                      (BuildContext context, BoxConstraints constraints) {
+                    return SizedBox(
+                      height: constraints.maxHeight / 1.12,
+                      child: GoogleMap(
+                        mapType: MapType.hybrid,
+                        onMapCreated: (GoogleMapController controller) {
+                          _onMapCreated(controller);
+                        },
+                        initialCameraPosition: CameraPosition(
+                          target: initialCameraPosition,
+                          zoom: 14.4746,
+                        ),
+                        myLocationEnabled: true,
+                        markers: Set<Marker>.of(markers),
+                        onLongPress: (latLang) => addMarker(latLang),
+                      ),
+                    );
+                  }),
                   SearchAnchor(
                     viewOnChanged: (value) async {
                       http.Response response = await googleMapsService
@@ -140,18 +253,9 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                           ["placePrediction"]["placeId"]);
                               final locationData = jsonDecode(response.body)
                                   as Map<String, dynamic>;
-                              MarkerId markerId = const MarkerId('Test');
-                              Marker selectedLocationMarker = Marker(
-                                markerId: markerId,
-                                position: LatLng(
-                                    locationData["location"]["latitude"],
-                                    locationData["location"]["longitude"]),
-                                infoWindow: InfoWindow(
-                                  title: "Sydney",
-                                  snippet: "Capital of New South Wales",
-                                  onTap: () {},
-                                ),
-                              );
+                              addMarker(LatLng(
+                                  locationData["location"]["latitude"],
+                                  locationData["location"]["longitude"]));
                               setState(() {
                                 controller.closeView(item);
                                 FocusScope.of(context).unfocus();
@@ -166,11 +270,50 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                     ),
                                   ),
                                 );
-                                markers.add(selectedLocationMarker);
                               });
                             },
                           );
                         },
+                      );
+                    },
+                  ),
+                  DraggableScrollableSheet(
+                    snap: true,
+                    initialChildSize: 0.10,
+                    minChildSize: 0.10,
+                    builder: (BuildContext context,
+                        ScrollController scrollController) {
+                      return Container(
+                        clipBehavior: Clip.hardEdge,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).canvasColor,
+                        ),
+                        child: ListView.builder(
+                          controller: scrollController,
+                          itemCount: checkpoints.length + 1,
+                          itemBuilder: (BuildContext context, int index) {
+                            if (index == 0) {
+                              return Center(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).hintColor,
+                                    borderRadius: const BorderRadius.all(
+                                        Radius.circular(10)),
+                                  ),
+                                  height: 4,
+                                  width: 40,
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 10),
+                                ),
+                              );
+                            }
+                            return ListTile(
+                              title: Text(
+                                checkpoints[index - 1].title,
+                              ),
+                            );
+                          },
+                        ),
                       );
                     },
                   ),
