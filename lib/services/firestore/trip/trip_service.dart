@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mytraveljournal/locator.dart';
+import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
 import 'package:mytraveljournal/models/user.dart';
@@ -189,5 +190,50 @@ class TripService {
 
   void cancelListenToUserTrips() async {
     await userTripListener.cancel();
+  }
+
+  // Add checkpoint for tripDay
+  Future<void> addCheckpointToTripDay(
+      String uid, String tripId, String dayId, Checkpoint checkpoint) async {
+    final data = <String, dynamic>{
+      "title": checkpoint.title,
+      "latitude": checkpoint.coordinates.latitude,
+      "longitude": checkpoint.coordinates.longitude,
+      "checkpointId": checkpoint.checkpointId,
+      "checkpointNumber": checkpoint.chekpointNumber
+    };
+
+    await _db
+        .collection("users")
+        .doc(uid)
+        .collection("trips")
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .add(data);
+  }
+
+  // Get all tripDay checkpoints from db
+  Future<List<Checkpoint>> getTripDayCheckpoints(
+      String uid, String tripId, String dayId) async {
+    List<Checkpoint> checkpoints = [];
+    await _db
+        .collection("users")
+        .doc(uid)
+        .collection("trips")
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .orderBy("checkpointNumber")
+        .get()
+        .then((querySnapshot) {
+      for (var checkpoint in querySnapshot.docs) {
+        final data = checkpoint.data();
+        checkpoints.add(Checkpoint.fromFirestore(data));
+      }
+    });
+    return checkpoints;
   }
 }

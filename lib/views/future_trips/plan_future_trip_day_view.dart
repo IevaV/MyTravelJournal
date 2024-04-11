@@ -3,19 +3,23 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
+import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
+import 'package:mytraveljournal/models/user.dart';
+import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 import 'package:mytraveljournal/services/google_maps/google_maps_service.dart';
 import 'package:mytraveljournal/services/location/location_service.dart';
 import 'package:http/http.dart' as http;
-import 'dart:developer' as devtools show log;
 import 'package:watch_it/watch_it.dart';
 
 class PlanFutureTripDayView extends StatefulWidget
     with WatchItStatefulWidgetMixin {
-  const PlanFutureTripDayView({super.key, required this.tripDay});
+  const PlanFutureTripDayView(
+      {super.key, required this.tripId, required this.tripDay});
 
+  final String tripId;
   final TripDay tripDay;
 
   @override
@@ -34,6 +38,8 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
   List<dynamic> autoCompleteSuggestions = [];
   List<Marker> markers = [];
   Marker? tempMarker;
+  TripService tripService = getIt<TripService>();
+  User user = getIt<User>();
 
   @override
   void initState() {
@@ -85,7 +91,6 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
       );
       if (tempMarker == null) {
-        devtools.log(markers.length.toString());
         tempMarker = selectedLocationMarker;
         markers.add(selectedLocationMarker);
       } else {
@@ -93,10 +98,6 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
         tempMarker = selectedLocationMarker;
         markers.add(selectedLocationMarker);
       }
-      markers.forEach((element) {
-        devtools.log(element.markerId.toString());
-      });
-      devtools.log(markers.length.toString());
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -118,22 +119,31 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                     child: const Text('Cancel'),
                   ),
                   FilledButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).clearSnackBars();
+                    onPressed: () async {
                       Marker marker = Marker(
                         markerId: markerId,
                         position: latLng,
                         onTap: () => addedMarkerModal(checkpointNumber),
                       );
                       Checkpoint checkpoint = Checkpoint(
-                          selectedLocationMarker.markerId.value,
-                          latLng,
-                          marker);
-                      // TODO add to db checkpoint
-                      widget.tripDay.addCheckpoint(checkpoint);
-                      markers.removeLast();
-                      markers.add(marker);
-                      tempMarker = null;
+                        selectedLocationMarker.markerId.value,
+                        checkpointNumber,
+                        selectedLocationMarker.markerId.value,
+                        latLng,
+                        marker,
+                      );
+                      try {
+                        await tripService.addCheckpointToTripDay(user.uid,
+                            widget.tripId, widget.tripDay.dayId, checkpoint);
+                        ScaffoldMessenger.of(context).clearSnackBars();
+                        widget.tripDay.addCheckpoint(checkpoint);
+                        markers.removeLast();
+                        markers.add(marker);
+                        tempMarker = null;
+                      } catch (e) {
+                        await showErrorDialog(context,
+                            'Something went wrong, please try again later');
+                      }
                     },
                     child: const Text('Add'),
                   )
@@ -168,7 +178,17 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     List<Checkpoint> checkpoints = watch(widget.tripDay).checkpoints;
     callOnce(
       (context) {
-        markers = checkpoints.map((checkpoint) => checkpoint.marker).toList();
+        markers = checkpoints.map((checkpoint) {
+          if (checkpoint.marker == null) {
+            return Marker(
+              markerId: MarkerId(checkpoint.checkpointId),
+              position: checkpoint.coordinates,
+              onTap: () => addedMarkerModal(checkpoint.chekpointNumber),
+            );
+          } else {
+            return checkpoint.marker!;
+          }
+        }).toList();
       },
     );
     return Scaffold(

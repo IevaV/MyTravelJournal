@@ -103,6 +103,7 @@ void main() async {
         builder: (context, state) {
           TripDay tripDay = state.extra as TripDay;
           return PlanFutureTripDayView(
+            tripId: state.uri.queryParameters['tripId']!,
             tripDay: tripDay,
           );
         },
