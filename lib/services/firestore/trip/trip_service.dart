@@ -274,4 +274,18 @@ class TripService {
 
     await batch.commit();
   }
+
+  Future<void> updateCheckpoint(String uid, String tripId, String dayId,
+      String checkpointId, Map<String, dynamic> data) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc(checkpointId)
+        .update(data);
+  }
 }

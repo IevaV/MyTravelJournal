@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
@@ -41,17 +43,20 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
   Marker? tempMarker;
   TripService tripService = getIt<TripService>();
   User user = getIt<User>();
+  late final TextEditingController _checkpointTitle;
 
   @override
   void initState() {
     currentLocation();
     searchController = SearchController();
+    _checkpointTitle = TextEditingController();
     super.initState();
   }
 
   @override
   void dispose() async {
     searchController.dispose();
+    _checkpointTitle.dispose();
     super.dispose();
   }
 
@@ -209,6 +214,73 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
       await showErrorDialog(
           context, 'Something went wrong, please try again later');
     }
+  }
+
+  Future<void> updateCheckpoint(int index, List<Checkpoint> checkpoints) async {
+    _checkpointTitle.text = checkpoints[index - 1].title as String;
+    showDialog(
+      context: context,
+      builder: ((context) {
+        return Dialog.fullscreen(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                flex: 3,
+                child: Column(
+                  children: [
+                    Text(
+                        "Checkpoint ${checkpoints[index - 1].chekpointNumber}"),
+                    TextField(
+                      controller: _checkpointTitle,
+                      decoration: const InputDecoration(
+                        labelText: "Checkpoint title",
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                flex: 1,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    FilledButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Cancel')),
+                    FilledButton(
+                        onPressed: () async {
+                          try {
+                            Map<String, dynamic> data = {
+                              "title": _checkpointTitle.text
+                            };
+                            await tripService.updateCheckpoint(
+                                user.uid,
+                                widget.tripId,
+                                widget.tripDay.dayId,
+                                checkpoints[index - 1].checkpointId!,
+                                data);
+                            setState(() {
+                              checkpoints[index - 1].title =
+                                  _checkpointTitle.text;
+                            });
+                          } catch (e) {
+                            await showErrorDialog(context,
+                                'Something went wrong, please try again later');
+                          }
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Save')),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
   }
 
   @override
@@ -372,11 +444,18 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                               title: Text(
                                 "Checkpoint ${checkpoints[index - 1].chekpointNumber}",
                               ),
+                              subtitle: Text(
+                                  checkpoints[index - 1].title != null
+                                      ? checkpoints[index - 1].title!
+                                      : ""),
                               trailing: PopupMenuButton(
                                 itemBuilder: (context) {
                                   return [
                                     PopupMenuItem(
-                                      onTap: (() {}),
+                                      onTap: (() async {
+                                        await updateCheckpoint(
+                                            index, checkpoints);
+                                      }),
                                       child: const Row(
                                         children: [
                                           Padding(
