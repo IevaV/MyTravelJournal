@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
 import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
+import 'package:mytraveljournal/components/dialog_components/show_on_delete_dialog.dart';
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
@@ -120,22 +121,33 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                   ),
                   FilledButton(
                     onPressed: () async {
+                      http.Response response = await googleMapsService
+                          .fetchAddressFromLocation(latLng);
+                      final addressData =
+                          jsonDecode(response.body) as Map<String, dynamic>;
                       Marker marker = Marker(
                         markerId: markerId,
                         position: latLng,
-                        onTap: () => addedMarkerModal(checkpointNumber),
+                        infoWindow: InfoWindow(
+                            title: markerId.value,
+                            snippet: addressData["results"][0]
+                                ["formatted_address"]),
                       );
                       Checkpoint checkpoint = Checkpoint(
-                        selectedLocationMarker.markerId.value,
-                        checkpointNumber,
-                        selectedLocationMarker.markerId.value,
-                        latLng,
-                        marker,
+                        chekpointNumber: checkpointNumber,
+                        address: addressData["results"][0]["formatted_address"],
+                        coordinates: latLng,
+                        marker: marker,
                       );
                       try {
-                        await tripService.addCheckpointToTripDay(user.uid,
-                            widget.tripId, widget.tripDay.dayId, checkpoint);
+                        final addedCheckpoint =
+                            await tripService.addCheckpointToTripDay(
+                                user.uid,
+                                widget.tripId,
+                                widget.tripDay.dayId,
+                                checkpoint);
                         ScaffoldMessenger.of(context).clearSnackBars();
+                        checkpoint.checkpointId = addedCheckpoint.id;
                         widget.tripDay.addCheckpoint(checkpoint);
                         markers.removeLast();
                         markers.add(marker);
@@ -156,21 +168,47 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     });
   }
 
-  void addedMarkerModal(int checkpointNumber) {
-    showModalBottomSheet(
-      context: context,
-      // isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) {
-        return Center(
-          child: Column(
-            children: [
-              Text(widget.tripDay.checkpoints[checkpointNumber - 1].title),
-            ],
+  Future<void> deleteCheckpoint(int index, List<Checkpoint> checkpoints) async {
+    List<Checkpoint> tripDaysCheckpointsModified =
+        widget.tripDay.checkpoints.toList();
+    List<Marker> tripDayMarkersModified = markers.toList();
+    tripDaysCheckpointsModified.removeAt(index - 1);
+    tripDayMarkersModified.removeAt(index - 1);
+    for (var i = checkpoints[index - 1].chekpointNumber - 1;
+        i < tripDaysCheckpointsModified.length;
+        i++) {
+      tripDaysCheckpointsModified[i].chekpointNumber = i + 1;
+      Marker newMarker = Marker(
+        markerId: MarkerId("Checkpoint ${i + 1}"),
+        position: tripDaysCheckpointsModified[i].coordinates,
+        infoWindow: InfoWindow(
+          title: "Checkpoint ${tripDaysCheckpointsModified[i].chekpointNumber}",
+          snippet: tripDaysCheckpointsModified[i].address,
+        ),
+      );
+      tripDayMarkersModified[i] = newMarker;
+    }
+
+    try {
+      await tripService.batchUpdateAfterTripDayCheckpointDeletion(
+          user.uid,
+          widget.tripId,
+          widget.tripDay.dayId,
+          checkpoints[index - 1].checkpointId!,
+          tripDaysCheckpointsModified);
+      setState(() {
+        markers = tripDayMarkersModified;
+        widget.tripDay.checkpoints = tripDaysCheckpointsModified;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Checkpoint $index deleted'),
           ),
         );
-      },
-    );
+      });
+    } catch (e) {
+      await showErrorDialog(
+          context, 'Something went wrong, please try again later');
+    }
   }
 
   @override
@@ -181,9 +219,12 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
         markers = checkpoints.map((checkpoint) {
           if (checkpoint.marker == null) {
             return Marker(
-              markerId: MarkerId(checkpoint.checkpointId),
+              markerId: MarkerId("Checkpoint ${checkpoint.chekpointNumber}"),
               position: checkpoint.coordinates,
-              onTap: () => addedMarkerModal(checkpoint.chekpointNumber),
+              infoWindow: InfoWindow(
+                title: "Checkpoint ${checkpoint.chekpointNumber}",
+                snippet: checkpoint.address,
+              ),
             );
           } else {
             return checkpoint.marker!;
@@ -329,7 +370,45 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                             }
                             return ListTile(
                               title: Text(
-                                checkpoints[index - 1].title,
+                                "Checkpoint ${checkpoints[index - 1].chekpointNumber}",
+                              ),
+                              trailing: PopupMenuButton(
+                                itemBuilder: (context) {
+                                  return [
+                                    PopupMenuItem(
+                                      onTap: (() {}),
+                                      child: const Row(
+                                        children: [
+                                          Padding(
+                                            padding: EdgeInsets.all(8),
+                                            child: Icon(Icons.edit),
+                                          ),
+                                          Text('Edit')
+                                        ],
+                                      ),
+                                    ),
+                                    PopupMenuItem(
+                                      onTap: (() async {
+                                        bool? confirmDelete =
+                                            await showDeleteDialog(
+                                                context, 'Checkpoint $index?');
+                                        if (confirmDelete == true) {
+                                          await deleteCheckpoint(
+                                              index, checkpoints);
+                                        }
+                                      }),
+                                      child: const Row(
+                                        children: [
+                                          Padding(
+                                            padding: EdgeInsets.all(8),
+                                            child: Icon(Icons.delete),
+                                          ),
+                                          Text('Delete')
+                                        ],
+                                      ),
+                                    )
+                                  ];
+                                },
                               ),
                             );
                           },

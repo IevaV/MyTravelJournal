@@ -193,17 +193,17 @@ class TripService {
   }
 
   // Add checkpoint for tripDay
-  Future<void> addCheckpointToTripDay(
+  Future<DocumentReference<Map<String, dynamic>>> addCheckpointToTripDay(
       String uid, String tripId, String dayId, Checkpoint checkpoint) async {
     final data = <String, dynamic>{
       "title": checkpoint.title,
       "latitude": checkpoint.coordinates.latitude,
       "longitude": checkpoint.coordinates.longitude,
-      "checkpointId": checkpoint.checkpointId,
-      "checkpointNumber": checkpoint.chekpointNumber
+      "checkpointNumber": checkpoint.chekpointNumber,
+      "address": checkpoint.address,
     };
 
-    await _db
+    return await _db
         .collection("users")
         .doc(uid)
         .collection("trips")
@@ -230,10 +230,48 @@ class TripService {
         .get()
         .then((querySnapshot) {
       for (var checkpoint in querySnapshot.docs) {
-        final data = checkpoint.data();
-        checkpoints.add(Checkpoint.fromFirestore(data));
+        checkpoints.add(Checkpoint.fromFirestore(checkpoint));
       }
     });
     return checkpoints;
+  }
+
+  Future<void> batchUpdateAfterTripDayCheckpointDeletion(
+      String uid,
+      String tripId,
+      String dayId,
+      String checkpointId,
+      List<Checkpoint> tripDayCheckpoints) async {
+    final batch = _db.batch();
+
+    // Find checkpoint to delete and add it to batch
+    var dayRef = _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc(checkpointId);
+    batch.delete(dayRef);
+
+    // Update checkpointNumber for the remaining checkpoints
+    for (var checkpoint in tripDayCheckpoints) {
+      var updateDayRef = _db
+          .collection('users')
+          .doc(uid)
+          .collection('trips')
+          .doc(tripId)
+          .collection("days")
+          .doc(dayId)
+          .collection("checkpoints")
+          .doc(checkpoint.checkpointId);
+      batch.update(updateDayRef, {
+        "checkpointNumber": checkpoint.chekpointNumber,
+      });
+    }
+
+    await batch.commit();
   }
 }

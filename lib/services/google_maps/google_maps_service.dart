@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:mytraveljournal/config.dart';
 
@@ -23,5 +24,9 @@ class GoogleMapsService {
         'X-Goog-FieldMask': 'location'
       },
     );
+  }
+
+  Future<http.Response> fetchAddressFromLocation(LatLng latLng) {
+    return http.get(Uri.parse('https://maps.googleapis.com/maps/api/geocode/json?latlng=${latLng.latitude},${latLng.longitude}&key=$googleMapsAPIKey'));
   }
 }
