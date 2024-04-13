@@ -197,11 +197,20 @@ class TripService {
       String uid, String tripId, String dayId, Checkpoint checkpoint) async {
     final data = <String, dynamic>{
       "title": checkpoint.title,
-      "latitude": checkpoint.coordinates.latitude,
-      "longitude": checkpoint.coordinates.longitude,
+      "coordinates": GeoPoint(
+          checkpoint.coordinates.latitude, checkpoint.coordinates.longitude),
       "checkpointNumber": checkpoint.chekpointNumber,
       "address": checkpoint.address,
     };
+
+    if (checkpoint.polyline != null) {
+      List<GeoPoint> polylineGeopoints = [];
+      for (var polylineCoordinate in checkpoint.polyline!.points) {
+        polylineGeopoints.add(GeoPoint(
+            polylineCoordinate.latitude, polylineCoordinate.longitude));
+      }
+      data["polylineCoordinates"] = polylineGeopoints;
+    }
 
     return await _db
         .collection("users")
@@ -267,8 +276,18 @@ class TripService {
           .doc(dayId)
           .collection("checkpoints")
           .doc(checkpoint.checkpointId);
+
+      dynamic polylineGeopoints;
+      if (checkpoint.polyline != null) {
+        polylineGeopoints = [];
+        for (var polylineCoordinate in checkpoint.polyline!.points) {
+          polylineGeopoints.add(GeoPoint(
+              polylineCoordinate.latitude, polylineCoordinate.longitude));
+        }
+      }
       batch.update(updateDayRef, {
         "checkpointNumber": checkpoint.chekpointNumber,
+        "polylineCoordinates": polylineGeopoints,
       });
     }
 

@@ -1,7 +1,6 @@
 import 'dart:convert';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
@@ -15,6 +14,7 @@ import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 import 'package:mytraveljournal/services/google_maps/google_maps_service.dart';
 import 'package:mytraveljournal/services/location/location_service.dart';
 import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
 import 'package:watch_it/watch_it.dart';
 
 class PlanFutureTripDayView extends StatefulWidget
@@ -40,10 +40,12 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
   late final SearchController searchController;
   List<dynamic> autoCompleteSuggestions = [];
   List<Marker> markers = [];
+  List<Polyline> polylines = [];
   Marker? tempMarker;
   TripService tripService = getIt<TripService>();
   User user = getIt<User>();
   late final TextEditingController _checkpointTitle;
+  PolylinePoints polylinePoints = PolylinePoints();
 
   @override
   void initState() {
@@ -145,6 +147,13 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                         marker: marker,
                       );
                       try {
+                        if (widget.tripDay.checkpoints.isNotEmpty) {
+                          Polyline createdPolyline = await addPolyline(
+                              widget.tripDay.checkpoints.last, checkpoint);
+                          setState(() {
+                            polylines.add(createdPolyline);
+                          });
+                        }
                         final addedCheckpoint =
                             await tripService.addCheckpointToTripDay(
                                 user.uid,
@@ -177,8 +186,22 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     List<Checkpoint> tripDaysCheckpointsModified =
         widget.tripDay.checkpoints.toList();
     List<Marker> tripDayMarkersModified = markers.toList();
+    List<Polyline> polylinesModified = polylines.toList();
     tripDaysCheckpointsModified.removeAt(index - 1);
     tripDayMarkersModified.removeAt(index - 1);
+    if (index == 1) {
+      polylinesModified.removeAt(index - 1);
+      tripDaysCheckpointsModified[index].polyline = null;
+    } else if (index == widget.tripDay.checkpoints.length) {
+      polylinesModified.removeAt(index - 2);
+    } else {
+      polylinesModified.removeAt(index - 1);
+      polylinesModified.removeAt(index - 2);
+      Polyline createdPolyline = await addPolyline(
+          tripDaysCheckpointsModified[index - 2],
+          tripDaysCheckpointsModified[index - 1]);
+      polylinesModified.add(createdPolyline);
+    }
     for (var i = checkpoints[index - 1].chekpointNumber - 1;
         i < tripDaysCheckpointsModified.length;
         i++) {
@@ -203,6 +226,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
           tripDaysCheckpointsModified);
       setState(() {
         markers = tripDayMarkersModified;
+        polylines = polylinesModified;
         widget.tripDay.checkpoints = tripDaysCheckpointsModified;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -217,7 +241,9 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
   }
 
   Future<void> updateCheckpoint(int index, List<Checkpoint> checkpoints) async {
-    _checkpointTitle.text = checkpoints[index - 1].title as String;
+    _checkpointTitle.text = checkpoints[index - 1].title != null
+        ? checkpoints[index - 1].title!
+        : "";
     showDialog(
       context: context,
       builder: ((context) {
@@ -283,6 +309,22 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     );
   }
 
+  Future<Polyline> addPolyline(Checkpoint start, Checkpoint end) async {
+    http.Response response =
+        await googleMapsService.fetchRoute(start.coordinates, end.coordinates);
+    final routeData = jsonDecode(response.body) as Map<String, dynamic>;
+    List<PointLatLng> result = polylinePoints
+        .decodePolyline(routeData["routes"][0]["polyline"]["encodedPolyline"]);
+    List<LatLng> coords =
+        result.map((coord) => LatLng(coord.latitude, coord.longitude)).toList();
+    Polyline polyline = Polyline(
+        polylineId: PolylineId(const Uuid().v4()),
+        points: coords,
+        color: Colors.blue.withOpacity(0.75));
+    end.polyline = polyline;
+    return polyline;
+  }
+
   @override
   Widget build(BuildContext context) {
     List<Checkpoint> checkpoints = watch(widget.tripDay).checkpoints;
@@ -301,6 +343,9 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
           } else {
             return checkpoint.marker!;
           }
+        }).toList();
+        polylines = checkpoints.skip(1).map((checkpoint) {
+          return checkpoint.polyline!;
         }).toList();
       },
     );
@@ -339,6 +384,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                         myLocationEnabled: true,
                         markers: Set<Marker>.of(markers),
                         onLongPress: (latLang) => addMarker(latLang),
+                        polylines: Set<Polyline>.of(polylines),
                       ),
                     );
                   }),

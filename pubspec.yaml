@@ -44,6 +44,8 @@ dependencies:
   watch_it: ^1.4.1
   location: ^6.0.1
   http: ^1.2.1
+  flutter_polyline_points: ^2.0.0
+  uuid: ^4.4.0
 
 dev_dependencies:
   flutter_test:
