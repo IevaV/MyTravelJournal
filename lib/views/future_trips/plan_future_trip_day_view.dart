@@ -46,6 +46,9 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
   User user = getIt<User>();
   late final TextEditingController _checkpointTitle;
   PolylinePoints polylinePoints = PolylinePoints();
+  String checkpointPositionOption = "Add at end";
+  bool selectCheckpointEnabled = false;
+  int checkpointPosition = 1;
 
   @override
   void initState() {
@@ -128,47 +131,58 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                   ),
                   FilledButton(
                     onPressed: () async {
-                      http.Response response = await googleMapsService
-                          .fetchAddressFromLocation(latLng);
-                      final addressData =
-                          jsonDecode(response.body) as Map<String, dynamic>;
-                      Marker marker = Marker(
-                        markerId: markerId,
-                        position: latLng,
-                        infoWindow: InfoWindow(
-                            title: markerId.value,
-                            snippet: addressData["results"][0]
-                                ["formatted_address"]),
-                      );
-                      Checkpoint checkpoint = Checkpoint(
-                        chekpointNumber: checkpointNumber,
-                        address: addressData["results"][0]["formatted_address"],
-                        coordinates: latLng,
-                        marker: marker,
-                      );
-                      try {
-                        if (widget.tripDay.checkpoints.isNotEmpty) {
-                          Polyline createdPolyline = await addPolyline(
-                              widget.tripDay.checkpoints.last, checkpoint);
-                          setState(() {
-                            polylines.add(createdPolyline);
-                          });
+                      bool addCheckpoint = await createCheckpointDialog();
+                      if (addCheckpoint) {
+                        http.Response response = await googleMapsService
+                            .fetchAddressFromLocation(latLng);
+                        final addressData =
+                            jsonDecode(response.body) as Map<String, dynamic>;
+                        Marker marker;
+                        Checkpoint checkpoint;
+                        if (checkpointPositionOption == "Add at end") {
+                          marker = Marker(
+                            markerId: markerId,
+                            position: latLng,
+                            infoWindow: InfoWindow(
+                                title: markerId.value,
+                                snippet: addressData["results"][0]
+                                    ["formatted_address"]),
+                          );
+                          checkpoint = Checkpoint(
+                            chekpointNumber: checkpointNumber,
+                            address: addressData["results"][0]
+                                ["formatted_address"],
+                            coordinates: latLng,
+                            marker: marker,
+                          );
+
+                          try {
+                            if (widget.tripDay.checkpoints.isNotEmpty) {
+                              Polyline createdPolyline = await addPolyline(
+                                  widget.tripDay.checkpoints.last, checkpoint);
+                              setState(() {
+                                polylines.add(createdPolyline);
+                              });
+                            }
+                            final addedCheckpoint =
+                                await tripService.addCheckpointToTripDay(
+                                    user.uid,
+                                    widget.tripId,
+                                    widget.tripDay.dayId,
+                                    checkpoint);
+                            ScaffoldMessenger.of(context).clearSnackBars();
+                            checkpoint.checkpointId = addedCheckpoint.id;
+                            widget.tripDay.addCheckpoint(checkpoint);
+                            markers.removeLast();
+                            markers.add(marker);
+                            tempMarker = null;
+                          } catch (e) {
+                            await showErrorDialog(context,
+                                'Something went wrong, please try again later');
+                          }
+                        } else {
+                          await insertCheckpointBefore(latLng, addressData);
                         }
-                        final addedCheckpoint =
-                            await tripService.addCheckpointToTripDay(
-                                user.uid,
-                                widget.tripId,
-                                widget.tripDay.dayId,
-                                checkpoint);
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        checkpoint.checkpointId = addedCheckpoint.id;
-                        widget.tripDay.addCheckpoint(checkpoint);
-                        markers.removeLast();
-                        markers.add(marker);
-                        tempMarker = null;
-                      } catch (e) {
-                        await showErrorDialog(context,
-                            'Something went wrong, please try again later');
                       }
                     },
                     child: const Text('Add'),
@@ -182,21 +196,195 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     });
   }
 
+  Future<bool> createCheckpointDialog() async {
+    checkpointPositionOption = "Add at end";
+    checkpointPosition = 1;
+    return await showDialog(
+        barrierDismissible: false,
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return Dialog(
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: Text(
+                          'At end as Checkpoint ${widget.tripDay.checkpoints.length + 1}'),
+                      leading: Radio<String>(
+                        value: "Add at end",
+                        groupValue: checkpointPositionOption,
+                        onChanged: (value) {
+                          setState(() {
+                            checkpointPositionOption = value!;
+                            selectCheckpointEnabled = false;
+                          });
+                        },
+                      ),
+                    ),
+                    ListTile(
+                      title: const Text('Before'),
+                      leading: Radio<String>(
+                        value: "Add before",
+                        groupValue: checkpointPositionOption,
+                        onChanged: (value) {
+                          setState(() {
+                            checkpointPositionOption = value!;
+                            selectCheckpointEnabled = true;
+                          });
+                        },
+                      ),
+                      trailing: DropdownMenu(
+                          enabled: selectCheckpointEnabled,
+                          initialSelection: 1,
+                          onSelected: (value) {
+                            setState(() {
+                              checkpointPosition = value!;
+                            });
+                          },
+                          dropdownMenuEntries: widget.tripDay.checkpoints
+                              .map((checkpoint) => DropdownMenuEntry(
+                                  value: checkpoint.chekpointNumber,
+                                  label:
+                                      "Checkpoint ${checkpoint.chekpointNumber}"))
+                              .toList()),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(false);
+                      },
+                      child: const Text('Close'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        // ScaffoldMessenger.of(context).clearSnackBars();
+                        // setState(() {
+                        //   markers.removeLast();
+                        //   tempMarker = null;
+                        // });
+                        Navigator.of(context).pop(true);
+                      },
+                      child: const Text('Add'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        });
+  }
+
+  Future<void> insertCheckpointBefore(
+      LatLng latLng, Map<String, dynamic> addressData) async {
+    markers.removeLast();
+    tempMarker = null;
+    List<Checkpoint> tripDaysCheckpointsModified =
+        widget.tripDay.checkpoints.toList();
+    List<Marker> tripDayMarkersModified = markers.toList();
+    List<Polyline> polylinesModified = polylines.toList();
+    if (checkpointPosition != 1) {
+      polylinesModified.removeAt(checkpointPosition - 2);
+    }
+    MarkerId markerId = MarkerId("Checkpoint $checkpointPosition");
+    Marker marker = Marker(
+      markerId: markerId,
+      position: latLng,
+      infoWindow: InfoWindow(
+          title: markerId.value,
+          snippet: addressData["results"][0]["formatted_address"]),
+    );
+    Checkpoint checkpoint = Checkpoint(
+      chekpointNumber: checkpointPosition,
+      address: addressData["results"][0]["formatted_address"],
+      coordinates: latLng,
+      marker: marker,
+    );
+    for (var i = checkpointPosition - 1;
+        i < tripDaysCheckpointsModified.length;
+        i++) {
+      tripDaysCheckpointsModified[i].chekpointNumber =
+          tripDaysCheckpointsModified[i].chekpointNumber + 1;
+      Marker newMarker = Marker(
+        markerId: MarkerId(
+            "Checkpoint ${tripDaysCheckpointsModified[i].chekpointNumber}"),
+        position: tripDaysCheckpointsModified[i].coordinates,
+        infoWindow: InfoWindow(
+          title: "Checkpoint ${tripDaysCheckpointsModified[i].chekpointNumber}",
+          snippet: tripDaysCheckpointsModified[i].address,
+        ),
+      );
+      tripDayMarkersModified[i] = newMarker;
+    }
+    tripDaysCheckpointsModified.insert(checkpointPosition - 1, checkpoint);
+    tripDayMarkersModified.insert(checkpointPosition - 1, marker);
+    if (checkpointPosition != 1) {
+      Polyline polylineBefore = await addPolyline(
+          tripDaysCheckpointsModified[checkpointPosition - 2],
+          tripDaysCheckpointsModified[checkpointPosition - 1]);
+      Polyline polylineAfter = await addPolyline(
+          tripDaysCheckpointsModified[checkpointPosition - 1],
+          tripDaysCheckpointsModified[checkpointPosition]);
+      polylinesModified.addAll([polylineBefore, polylineAfter]);
+    } else {
+      Polyline polylineAfter = await addPolyline(
+          tripDaysCheckpointsModified[checkpointPosition - 1],
+          tripDaysCheckpointsModified[checkpointPosition]);
+      polylinesModified.add(polylineAfter);
+    }
+
+    try {
+      String addedCheckpointId =
+          await tripService.batchUpdateAfterTripDayCheckpointAddition(
+              user.uid,
+              widget.tripId,
+              widget.tripDay.dayId,
+              checkpoint,
+              tripDaysCheckpointsModified.sublist(checkpointPosition));
+      tripDaysCheckpointsModified[checkpointPosition - 1].checkpointId =
+          addedCheckpointId;
+      setState(() {
+        markers = tripDayMarkersModified;
+        polylines = polylinesModified;
+        widget.tripDay.checkpoints = tripDaysCheckpointsModified;
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('New checkpoint added'),
+          ),
+        );
+      });
+    } catch (e) {
+      await showErrorDialog(
+          context, 'Something went wrong, please try again later');
+    }
+  }
+
   Future<void> deleteCheckpoint(int index, List<Checkpoint> checkpoints) async {
     List<Checkpoint> tripDaysCheckpointsModified =
         widget.tripDay.checkpoints.toList();
     List<Marker> tripDayMarkersModified = markers.toList();
     List<Polyline> polylinesModified = polylines.toList();
-    tripDaysCheckpointsModified.removeAt(index - 1);
+    Checkpoint removedCheckpoint =
+        tripDaysCheckpointsModified.removeAt(index - 1);
     tripDayMarkersModified.removeAt(index - 1);
     if (index == 1) {
-      polylinesModified.removeAt(index - 1);
+      // for (var polyline in polylinesModified) {
+      //   if (polyline.polylineId.value == tripDaysCheckpointsModified[index - 1].polyline!.polylineId.value) {
+      //     polylinesModified.remove(value)
+      //   }
+      //  }
+      polylinesModified
+          .remove(tripDaysCheckpointsModified[index - 1].polyline!);
+      // polylinesModified.removeAt(index - 1);
       tripDaysCheckpointsModified[index].polyline = null;
     } else if (index == widget.tripDay.checkpoints.length) {
-      polylinesModified.removeAt(index - 2);
+      polylinesModified.remove(removedCheckpoint.polyline!);
+      // polylinesModified.removeAt(index - 2);
     } else {
-      polylinesModified.removeAt(index - 1);
-      polylinesModified.removeAt(index - 2);
+      polylinesModified
+          .remove(tripDaysCheckpointsModified[index - 1].polyline!);
+      polylinesModified
+          .remove(tripDaysCheckpointsModified[index - 2].polyline!);
       Polyline createdPolyline = await addPolyline(
           tripDaysCheckpointsModified[index - 2],
           tripDaysCheckpointsModified[index - 1]);
@@ -514,6 +702,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                     ),
                                     PopupMenuItem(
                                       onTap: (() async {
+                                        // TODO find correct checkpoint from checkpoints list and return it
                                         bool? confirmDelete =
                                             await showDeleteDialog(
                                                 context, 'Checkpoint $index?');
