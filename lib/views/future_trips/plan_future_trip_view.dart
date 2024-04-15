@@ -4,13 +4,16 @@ import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
 import 'package:mytraveljournal/components/dialog_components/show_on_delete_dialog.dart';
 import 'package:mytraveljournal/locator.dart';
+import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
 import 'package:mytraveljournal/models/user.dart';
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 import 'package:mytraveljournal/utilities/date_helper.dart';
+import 'package:watch_it/watch_it.dart';
 
-class PlanFutureTripView extends StatefulWidget {
+class PlanFutureTripView extends StatefulWidget
+    with WatchItStatefulWidgetMixin {
   const PlanFutureTripView({super.key, required this.trip});
 
   final Trip trip;
@@ -24,6 +27,13 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
   Widget build(BuildContext context) {
     TripService tripService = getIt<TripService>();
     User user = getIt<User>();
+    callOnce((context) async {
+      for (var i = 0; i < widget.trip.days.length; i++) {
+        List<Checkpoint> checkpoints = await tripService.getTripDayCheckpoints(
+            user.uid, widget.trip.tripId, widget.trip.days[i].dayId);
+        widget.trip.days[i].checkpoints = checkpoints;
+      }
+    });
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -126,6 +136,11 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                           title: Text("Day ${day.dayNumber}"),
                           subtitle:
                               Text("${day.dayId} and ${day.date.toString()}"),
+                          onTap: () {
+                            GoRouter.of(context).push(
+                                '/plan-future-trip-day?tripId=${widget.trip.tripId}',
+                                extra: day);
+                          },
                         ),
                       )
                   ],

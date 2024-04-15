@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mytraveljournal/locator.dart';
+import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
 import 'package:mytraveljournal/models/user.dart';
@@ -189,5 +190,187 @@ class TripService {
 
   void cancelListenToUserTrips() async {
     await userTripListener.cancel();
+  }
+
+  // Add checkpoint for tripDay
+  Future<DocumentReference<Map<String, dynamic>>> addCheckpointToTripDay(
+      String uid, String tripId, String dayId, Checkpoint checkpoint) async {
+    final data = <String, dynamic>{
+      "title": checkpoint.title,
+      "coordinates": GeoPoint(
+          checkpoint.coordinates.latitude, checkpoint.coordinates.longitude),
+      "checkpointNumber": checkpoint.chekpointNumber,
+      "address": checkpoint.address,
+    };
+
+    if (checkpoint.polyline != null) {
+      List<GeoPoint> polylineGeopoints = [];
+      for (var polylineCoordinate in checkpoint.polyline!.points) {
+        polylineGeopoints.add(GeoPoint(
+            polylineCoordinate.latitude, polylineCoordinate.longitude));
+      }
+      data["polylineCoordinates"] = polylineGeopoints;
+    }
+
+    return await _db
+        .collection("users")
+        .doc(uid)
+        .collection("trips")
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .add(data);
+  }
+
+  // Get all tripDay checkpoints from db
+  Future<List<Checkpoint>> getTripDayCheckpoints(
+      String uid, String tripId, String dayId) async {
+    List<Checkpoint> checkpoints = [];
+    await _db
+        .collection("users")
+        .doc(uid)
+        .collection("trips")
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .orderBy("checkpointNumber")
+        .get()
+        .then((querySnapshot) {
+      for (var checkpoint in querySnapshot.docs) {
+        checkpoints.add(Checkpoint.fromFirestore(checkpoint));
+      }
+    });
+    return checkpoints;
+  }
+
+  Future<void> batchUpdateAfterTripDayCheckpointDeletion(
+      String uid,
+      String tripId,
+      String dayId,
+      String checkpointId,
+      List<Checkpoint> tripDayCheckpoints) async {
+    final batch = _db.batch();
+
+    // Find checkpoint to delete and add it to batch
+    var checkpointRef = _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc(checkpointId);
+    batch.delete(checkpointRef);
+
+    // Update checkpointNumber for the remaining checkpoints
+    for (var checkpoint in tripDayCheckpoints) {
+      var updateDayRef = _db
+          .collection('users')
+          .doc(uid)
+          .collection('trips')
+          .doc(tripId)
+          .collection("days")
+          .doc(dayId)
+          .collection("checkpoints")
+          .doc(checkpoint.checkpointId);
+
+      dynamic polylineGeopoints;
+      if (checkpoint.polyline != null) {
+        polylineGeopoints = [];
+        for (var polylineCoordinate in checkpoint.polyline!.points) {
+          polylineGeopoints.add(GeoPoint(
+              polylineCoordinate.latitude, polylineCoordinate.longitude));
+        }
+      }
+      batch.update(updateDayRef, {
+        "checkpointNumber": checkpoint.chekpointNumber,
+        "polylineCoordinates": polylineGeopoints,
+      });
+    }
+
+    await batch.commit();
+  }
+
+  Future<String> batchUpdateAfterTripDayCheckpointAddition(
+      String uid,
+      String tripId,
+      String dayId,
+      Checkpoint checkpoint,
+      List<Checkpoint> tripDayCheckpoints) async {
+    final batch = _db.batch();
+
+    final data = <String, dynamic>{
+      "title": checkpoint.title,
+      "coordinates": GeoPoint(
+          checkpoint.coordinates.latitude, checkpoint.coordinates.longitude),
+      "checkpointNumber": checkpoint.chekpointNumber,
+      "address": checkpoint.address,
+    };
+
+    if (checkpoint.polyline != null) {
+      List<GeoPoint> polylineGeopoints = [];
+      for (var polylineCoordinate in checkpoint.polyline!.points) {
+        polylineGeopoints.add(GeoPoint(
+            polylineCoordinate.latitude, polylineCoordinate.longitude));
+      }
+      data["polylineCoordinates"] = polylineGeopoints;
+    }
+    // Find checkpoint to delete and add it to batch
+    var checkpointRef = _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc();
+    batch.set(checkpointRef, data);
+
+    // Update checkpointNumber for the remaining checkpoints
+    for (var checkpoint in tripDayCheckpoints) {
+      var updateDayRef = _db
+          .collection('users')
+          .doc(uid)
+          .collection('trips')
+          .doc(tripId)
+          .collection("days")
+          .doc(dayId)
+          .collection("checkpoints")
+          .doc(checkpoint.checkpointId);
+
+      dynamic polylineGeopoints;
+      if (checkpoint.polyline != null) {
+        polylineGeopoints = [];
+        for (var polylineCoordinate in checkpoint.polyline!.points) {
+          polylineGeopoints.add(GeoPoint(
+              polylineCoordinate.latitude, polylineCoordinate.longitude));
+        }
+      }
+      batch.update(updateDayRef, {
+        "checkpointNumber": checkpoint.chekpointNumber,
+        "polylineCoordinates": polylineGeopoints,
+      });
+    }
+
+    await batch.commit();
+    return checkpointRef.id;
+  }
+
+  Future<void> updateCheckpoint(String uid, String tripId, String dayId,
+      String checkpointId, Map<String, dynamic> data) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc(checkpointId)
+        .update(data);
   }
 }
