@@ -8,7 +8,7 @@ class Checkpoint {
       {required this.chekpointNumber,
       required this.address,
       required this.coordinates,
-      this.marker,
+      required this.marker,
       this.checkpointId,
       this.title,
       this.polyline});
@@ -20,7 +20,7 @@ class Checkpoint {
   LatLng coordinates;
   late DateTime arrivalTime;
   late DateTime departureTime;
-  Marker? marker;
+  Marker marker;
   Polyline? polyline;
   // List<LatLng>? polylineCoordinates;
 
@@ -30,6 +30,14 @@ class Checkpoint {
         LatLng(data["coordinates"].latitude, data["coordinates"].longitude);
     Polyline? polyline;
     List<LatLng> polylineCoordinates = [];
+    Marker marker = Marker(
+      markerId: MarkerId("Checkpoint ${data["checkpointNumber"]}"),
+      position: coordinates,
+      infoWindow: InfoWindow(
+        title: "Checkpoint ${data["checkpointNumber"]}",
+        snippet: data["address"],
+      ),
+    );
     if (data["polylineCoordinates"] != null) {
       List<dynamic> geopoints = data["polylineCoordinates"] as List;
       for (var geopoint in geopoints) {
@@ -48,6 +56,7 @@ class Checkpoint {
       title: data["title"] ?? '',
       checkpointId: doc.id,
       polyline: polyline,
+      marker: marker,
     );
   }
 }

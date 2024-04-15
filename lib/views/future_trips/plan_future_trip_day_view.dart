@@ -69,19 +69,24 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     mapController = controller;
   }
 
+  Future<void> animateGoogleMapsCamera(latitude, longitude) async {
+    await mapController.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: LatLng(latitude, longitude),
+          zoom: 15,
+        ),
+      ),
+    );
+  }
+
   void currentLocation() async {
     await locationService.getServiceEnabled();
     await locationService.getPermissionStatus();
 
     currentPosition = await locationService.getCurrentLocation();
-    mapController.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(
-          target: LatLng(currentPosition.latitude!, currentPosition.longitude!),
-          zoom: 15,
-        ),
-      ),
-    );
+    await animateGoogleMapsCamera(
+        currentPosition.latitude!, currentPosition.longitude!);
     // Useful when in routes or ongoing trip, that should listen and snap to the current user location
     // stream = locationService.location.onLocationChanged.listen((data) {
     //   print("${currentPosition.longitude} : ${currentPosition.longitude}");
@@ -158,8 +163,13 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
 
                           try {
                             if (widget.tripDay.checkpoints.isNotEmpty) {
-                              Polyline createdPolyline = await addPolyline(
-                                  widget.tripDay.checkpoints.last, checkpoint);
+                              Checkpoint lastCheckpoint = widget
+                                  .tripDay.checkpoints
+                                  .firstWhere((checkpoint) =>
+                                      checkpoint.chekpointNumber ==
+                                      widget.tripDay.checkpoints.length);
+                              Polyline createdPolyline =
+                                  await addPolyline(lastCheckpoint, checkpoint);
                               setState(() {
                                 polylines.add(createdPolyline);
                               });
@@ -199,6 +209,9 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
   Future<bool> createCheckpointDialog() async {
     checkpointPositionOption = "Add at end";
     checkpointPosition = 1;
+    List<Checkpoint> checkpointsToModify = widget.tripDay.checkpoints.toList();
+    checkpointsToModify
+        .sort(((a, b) => a.chekpointNumber.compareTo(b.chekpointNumber)));
     return await showDialog(
         barrierDismissible: false,
         context: context,
@@ -210,7 +223,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                   children: [
                     ListTile(
                       title: Text(
-                          'At end as Checkpoint ${widget.tripDay.checkpoints.length + 1}'),
+                          'Add as Checkpoint ${widget.tripDay.checkpoints.length + 1}'),
                       leading: Radio<String>(
                         value: "Add at end",
                         groupValue: checkpointPositionOption,
@@ -227,12 +240,14 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                       leading: Radio<String>(
                         value: "Add before",
                         groupValue: checkpointPositionOption,
-                        onChanged: (value) {
-                          setState(() {
-                            checkpointPositionOption = value!;
-                            selectCheckpointEnabled = true;
-                          });
-                        },
+                        onChanged: checkpointsToModify.isNotEmpty
+                            ? (value) {
+                                setState(() {
+                                  checkpointPositionOption = value!;
+                                  selectCheckpointEnabled = true;
+                                });
+                              }
+                            : null,
                       ),
                       trailing: DropdownMenu(
                           enabled: selectCheckpointEnabled,
@@ -242,7 +257,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                               checkpointPosition = value!;
                             });
                           },
-                          dropdownMenuEntries: widget.tripDay.checkpoints
+                          dropdownMenuEntries: checkpointsToModify
                               .map((checkpoint) => DropdownMenuEntry(
                                   value: checkpoint.chekpointNumber,
                                   label:
@@ -257,11 +272,6 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                     ),
                     TextButton(
                       onPressed: () {
-                        // ScaffoldMessenger.of(context).clearSnackBars();
-                        // setState(() {
-                        //   markers.removeLast();
-                        //   tempMarker = null;
-                        // });
                         Navigator.of(context).pop(true);
                       },
                       child: const Text('Add'),
@@ -278,12 +288,15 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
       LatLng latLng, Map<String, dynamic> addressData) async {
     markers.removeLast();
     tempMarker = null;
+    List<Checkpoint> checkpointsToUpdate = [];
     List<Checkpoint> tripDaysCheckpointsModified =
         widget.tripDay.checkpoints.toList();
     List<Marker> tripDayMarkersModified = markers.toList();
     List<Polyline> polylinesModified = polylines.toList();
+    Checkpoint checkpointAfter = tripDaysCheckpointsModified.firstWhere(
+        (checkpoint) => checkpoint.chekpointNumber == checkpointPosition);
     if (checkpointPosition != 1) {
-      polylinesModified.removeAt(checkpointPosition - 2);
+      polylinesModified.remove(checkpointAfter.polyline);
     }
     MarkerId markerId = MarkerId("Checkpoint $checkpointPosition");
     Marker marker = Marker(
@@ -299,37 +312,39 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
       coordinates: latLng,
       marker: marker,
     );
-    for (var i = checkpointPosition - 1;
-        i < tripDaysCheckpointsModified.length;
-        i++) {
-      tripDaysCheckpointsModified[i].chekpointNumber =
-          tripDaysCheckpointsModified[i].chekpointNumber + 1;
+    for (var i = tripDaysCheckpointsModified.length;
+        i > checkpointPosition - 1;
+        i--) {
+      Checkpoint checkpointToUpdate = tripDaysCheckpointsModified
+          .firstWhere((checkpoint) => checkpoint.chekpointNumber == i);
+      checkpointToUpdate.chekpointNumber =
+          checkpointToUpdate.chekpointNumber + 1;
       Marker newMarker = Marker(
-        markerId: MarkerId(
-            "Checkpoint ${tripDaysCheckpointsModified[i].chekpointNumber}"),
-        position: tripDaysCheckpointsModified[i].coordinates,
+        markerId: MarkerId("Checkpoint ${checkpointToUpdate.chekpointNumber}"),
+        position: checkpointToUpdate.coordinates,
         infoWindow: InfoWindow(
-          title: "Checkpoint ${tripDaysCheckpointsModified[i].chekpointNumber}",
-          snippet: tripDaysCheckpointsModified[i].address,
+          title: "Checkpoint ${checkpointToUpdate.chekpointNumber}",
+          snippet: checkpointToUpdate.address,
         ),
       );
-      tripDayMarkersModified[i] = newMarker;
+      tripDayMarkersModified.remove(checkpointToUpdate.marker);
+      checkpointToUpdate.marker = newMarker;
+      tripDayMarkersModified.add(newMarker);
+      checkpointsToUpdate.add(checkpointToUpdate);
     }
-    tripDaysCheckpointsModified.insert(checkpointPosition - 1, checkpoint);
-    tripDayMarkersModified.insert(checkpointPosition - 1, marker);
+    tripDayMarkersModified.add(marker);
     if (checkpointPosition != 1) {
-      Polyline polylineBefore = await addPolyline(
-          tripDaysCheckpointsModified[checkpointPosition - 2],
-          tripDaysCheckpointsModified[checkpointPosition - 1]);
-      Polyline polylineAfter = await addPolyline(
-          tripDaysCheckpointsModified[checkpointPosition - 1],
-          tripDaysCheckpointsModified[checkpointPosition]);
+      Checkpoint checkpointBefore = tripDaysCheckpointsModified.firstWhere(
+          (checkpoint) => checkpoint.chekpointNumber == checkpointPosition - 1);
+      Polyline polylineBefore = await addPolyline(checkpointBefore, checkpoint);
+      Polyline polylineAfter = await addPolyline(checkpoint, checkpointAfter);
       polylinesModified.addAll([polylineBefore, polylineAfter]);
+      checkpoint.polyline = polylineBefore;
+      checkpointAfter.polyline = polylineAfter;
     } else {
-      Polyline polylineAfter = await addPolyline(
-          tripDaysCheckpointsModified[checkpointPosition - 1],
-          tripDaysCheckpointsModified[checkpointPosition]);
+      Polyline polylineAfter = await addPolyline(checkpoint, checkpointAfter);
       polylinesModified.add(polylineAfter);
+      checkpointAfter.polyline = polylineAfter;
     }
 
     try {
@@ -339,9 +354,9 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
               widget.tripId,
               widget.tripDay.dayId,
               checkpoint,
-              tripDaysCheckpointsModified.sublist(checkpointPosition));
-      tripDaysCheckpointsModified[checkpointPosition - 1].checkpointId =
-          addedCheckpointId;
+              checkpointsToUpdate);
+      checkpoint.checkpointId = addedCheckpointId;
+      tripDaysCheckpointsModified.add(checkpoint);
       setState(() {
         markers = tripDayMarkersModified;
         polylines = polylinesModified;
@@ -359,50 +374,56 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     }
   }
 
-  Future<void> deleteCheckpoint(int index, List<Checkpoint> checkpoints) async {
+  Future<void> deleteCheckpoint(
+      Checkpoint checkpointToDelete, List<Checkpoint> checkpoints) async {
     List<Checkpoint> tripDaysCheckpointsModified =
         widget.tripDay.checkpoints.toList();
     List<Marker> tripDayMarkersModified = markers.toList();
     List<Polyline> polylinesModified = polylines.toList();
-    Checkpoint removedCheckpoint =
-        tripDaysCheckpointsModified.removeAt(index - 1);
-    tripDayMarkersModified.removeAt(index - 1);
-    if (index == 1) {
-      // for (var polyline in polylinesModified) {
-      //   if (polyline.polylineId.value == tripDaysCheckpointsModified[index - 1].polyline!.polylineId.value) {
-      //     polylinesModified.remove(value)
-      //   }
-      //  }
-      polylinesModified
-          .remove(tripDaysCheckpointsModified[index - 1].polyline!);
-      // polylinesModified.removeAt(index - 1);
-      tripDaysCheckpointsModified[index].polyline = null;
-    } else if (index == widget.tripDay.checkpoints.length) {
-      polylinesModified.remove(removedCheckpoint.polyline!);
-      // polylinesModified.removeAt(index - 2);
-    } else {
-      polylinesModified
-          .remove(tripDaysCheckpointsModified[index - 1].polyline!);
-      polylinesModified
-          .remove(tripDaysCheckpointsModified[index - 2].polyline!);
-      Polyline createdPolyline = await addPolyline(
-          tripDaysCheckpointsModified[index - 2],
-          tripDaysCheckpointsModified[index - 1]);
-      polylinesModified.add(createdPolyline);
-    }
-    for (var i = checkpoints[index - 1].chekpointNumber - 1;
-        i < tripDaysCheckpointsModified.length;
-        i++) {
-      tripDaysCheckpointsModified[i].chekpointNumber = i + 1;
-      Marker newMarker = Marker(
-        markerId: MarkerId("Checkpoint ${i + 1}"),
-        position: tripDaysCheckpointsModified[i].coordinates,
-        infoWindow: InfoWindow(
-          title: "Checkpoint ${tripDaysCheckpointsModified[i].chekpointNumber}",
-          snippet: tripDaysCheckpointsModified[i].address,
-        ),
-      );
-      tripDayMarkersModified[i] = newMarker;
+    tripDaysCheckpointsModified.remove(checkpointToDelete);
+    tripDayMarkersModified.remove(checkpointToDelete.marker);
+    if (tripDaysCheckpointsModified.isNotEmpty) {
+      if (checkpointToDelete.chekpointNumber == 1) {
+        Checkpoint secondCheckpoint = tripDaysCheckpointsModified
+            .firstWhere((checkpoint) => checkpoint.chekpointNumber == 2);
+        polylinesModified.remove(secondCheckpoint.polyline!);
+        secondCheckpoint.polyline = null;
+      } else if (checkpointToDelete.chekpointNumber ==
+          widget.tripDay.checkpoints.length) {
+        polylinesModified.remove(checkpointToDelete.polyline!);
+      } else {
+        Checkpoint nextCheckpoint = tripDaysCheckpointsModified.firstWhere(
+            (checkpoint) =>
+                checkpoint.chekpointNumber ==
+                checkpointToDelete.chekpointNumber + 1);
+        Checkpoint previousCheckpoint = tripDaysCheckpointsModified.firstWhere(
+            (checkpoint) =>
+                checkpoint.chekpointNumber ==
+                checkpointToDelete.chekpointNumber - 1);
+        polylinesModified.remove(nextCheckpoint.polyline!);
+        polylinesModified.remove(checkpointToDelete.polyline!);
+        Polyline createdPolyline =
+            await addPolyline(previousCheckpoint, nextCheckpoint);
+        polylinesModified.add(createdPolyline);
+      }
+      for (var i = checkpointToDelete.chekpointNumber;
+          i <= tripDaysCheckpointsModified.length;
+          i++) {
+        Checkpoint checkpointToUpdate = tripDaysCheckpointsModified
+            .firstWhere((checkpoint) => checkpoint.chekpointNumber == i + 1);
+        checkpointToUpdate.chekpointNumber = i;
+        Marker newMarker = Marker(
+          markerId: MarkerId("Checkpoint $i"),
+          position: checkpointToUpdate.coordinates,
+          infoWindow: InfoWindow(
+            title: "Checkpoint ${checkpointToUpdate.chekpointNumber}",
+            snippet: checkpointToUpdate.address,
+          ),
+        );
+        tripDayMarkersModified.remove(checkpointToUpdate.marker);
+        checkpointToUpdate.marker = newMarker;
+        tripDayMarkersModified.add(newMarker);
+      }
     }
 
     try {
@@ -410,7 +431,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
           user.uid,
           widget.tripId,
           widget.tripDay.dayId,
-          checkpoints[index - 1].checkpointId!,
+          checkpointToDelete.checkpointId!,
           tripDaysCheckpointsModified);
       setState(() {
         markers = tripDayMarkersModified;
@@ -418,7 +439,8 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
         widget.tripDay.checkpoints = tripDaysCheckpointsModified;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Checkpoint $index deleted'),
+            content: Text(
+                'Checkpoint ${checkpointToDelete.chekpointNumber} deleted'),
           ),
         );
       });
@@ -428,10 +450,9 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     }
   }
 
-  Future<void> updateCheckpoint(int index, List<Checkpoint> checkpoints) async {
-    _checkpointTitle.text = checkpoints[index - 1].title != null
-        ? checkpoints[index - 1].title!
-        : "";
+  Future<void> updateCheckpoint(
+      Checkpoint checkpointToUpdate, List<Checkpoint> checkpoints) async {
+    _checkpointTitle.text = checkpointToUpdate.title ?? "";
     showDialog(
       context: context,
       builder: ((context) {
@@ -443,8 +464,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                 flex: 3,
                 child: Column(
                   children: [
-                    Text(
-                        "Checkpoint ${checkpoints[index - 1].chekpointNumber}"),
+                    Text("Checkpoint ${checkpointToUpdate.chekpointNumber}"),
                     TextField(
                       controller: _checkpointTitle,
                       decoration: const InputDecoration(
@@ -460,33 +480,34 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     FilledButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                        child: const Text('Cancel')),
+                      child: const Text('Cancel'),
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                    ),
                     FilledButton(
-                        onPressed: () async {
-                          try {
-                            Map<String, dynamic> data = {
-                              "title": _checkpointTitle.text
-                            };
-                            await tripService.updateCheckpoint(
-                                user.uid,
-                                widget.tripId,
-                                widget.tripDay.dayId,
-                                checkpoints[index - 1].checkpointId!,
-                                data);
-                            setState(() {
-                              checkpoints[index - 1].title =
-                                  _checkpointTitle.text;
-                            });
-                          } catch (e) {
-                            await showErrorDialog(context,
-                                'Something went wrong, please try again later');
-                          }
-                          Navigator.pop(context);
-                        },
-                        child: const Text('Save')),
+                      child: const Text('Save'),
+                      onPressed: () async {
+                        try {
+                          Map<String, dynamic> data = {
+                            "title": _checkpointTitle.text
+                          };
+                          await tripService.updateCheckpoint(
+                              user.uid,
+                              widget.tripId,
+                              widget.tripDay.dayId,
+                              checkpointToUpdate.checkpointId!,
+                              data);
+                          setState(() {
+                            checkpointToUpdate.title = _checkpointTitle.text;
+                          });
+                        } catch (e) {
+                          await showErrorDialog(context,
+                              'Something went wrong, please try again later');
+                        }
+                        Navigator.pop(context);
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -519,18 +540,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     callOnce(
       (context) {
         markers = checkpoints.map((checkpoint) {
-          if (checkpoint.marker == null) {
-            return Marker(
-              markerId: MarkerId("Checkpoint ${checkpoint.chekpointNumber}"),
-              position: checkpoint.coordinates,
-              infoWindow: InfoWindow(
-                title: "Checkpoint ${checkpoint.chekpointNumber}",
-                snippet: checkpoint.address,
-              ),
-            );
-          } else {
-            return checkpoint.marker!;
-          }
+          return checkpoint.marker;
         }).toList();
         polylines = checkpoints.skip(1).map((checkpoint) {
           return checkpoint.polyline!;
@@ -623,20 +633,12 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                               addMarker(LatLng(
                                   locationData["location"]["latitude"],
                                   locationData["location"]["longitude"]));
-                              setState(() {
+                              setState(() async {
                                 controller.closeView(item);
                                 FocusScope.of(context).unfocus();
-                                mapController.animateCamera(
-                                  CameraUpdate.newCameraPosition(
-                                    CameraPosition(
-                                      target: LatLng(
-                                          locationData["location"]["latitude"],
-                                          locationData["location"]
-                                              ["longitude"]),
-                                      zoom: 15,
-                                    ),
-                                  ),
-                                );
+                                await animateGoogleMapsCamera(
+                                    locationData["location"]["latitude"],
+                                    locationData["location"]["longitude"]);
                               });
                             },
                           );
@@ -646,6 +648,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                   ),
                   DraggableScrollableSheet(
                     snap: true,
+                    maxChildSize: 0.5,
                     initialChildSize: 0.10,
                     minChildSize: 0.10,
                     builder: (BuildContext context,
@@ -674,21 +677,30 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                 ),
                               );
                             }
+                            Checkpoint checkpoint = checkpoints.firstWhere(
+                                (checkpoint) =>
+                                    checkpoint.chekpointNumber == index);
                             return ListTile(
                               title: Text(
-                                "Checkpoint ${checkpoints[index - 1].chekpointNumber}",
+                                "Checkpoint ${checkpoint.chekpointNumber}",
                               ),
-                              subtitle: Text(
-                                  checkpoints[index - 1].title != null
-                                      ? checkpoints[index - 1].title!
-                                      : ""),
+                              subtitle: Text(checkpoint.title != null
+                                  ? checkpoint.title!
+                                  : ""),
+                              onTap: (() async {
+                                await animateGoogleMapsCamera(
+                                    checkpoint.coordinates.latitude,
+                                    checkpoint.coordinates.longitude);
+                                await mapController.showMarkerInfoWindow(
+                                    checkpoint.marker.markerId);
+                              }),
                               trailing: PopupMenuButton(
                                 itemBuilder: (context) {
                                   return [
                                     PopupMenuItem(
                                       onTap: (() async {
                                         await updateCheckpoint(
-                                            index, checkpoints);
+                                            checkpoint, checkpoints);
                                       }),
                                       child: const Row(
                                         children: [
@@ -702,13 +714,12 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                     ),
                                     PopupMenuItem(
                                       onTap: (() async {
-                                        // TODO find correct checkpoint from checkpoints list and return it
                                         bool? confirmDelete =
-                                            await showDeleteDialog(
-                                                context, 'Checkpoint $index?');
+                                            await showDeleteDialog(context,
+                                                'Checkpoint ${checkpoint.chekpointNumber}?');
                                         if (confirmDelete == true) {
                                           await deleteCheckpoint(
-                                              index, checkpoints);
+                                              checkpoint, checkpoints);
                                         }
                                       }),
                                       child: const Row(
