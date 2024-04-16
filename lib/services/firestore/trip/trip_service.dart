@@ -31,6 +31,15 @@ class TripService {
     return tripDays;
   }
 
+  Future<void> updateTrip(String uid, String tripId, Map<String, dynamic> data) async {
+    await _db
+        .collection("users")
+        .doc(uid)
+        .collection("trips")
+        .doc(tripId)
+        .update(data);
+  }
+
   Future<Trip> getLatestUserTrip(String uid) {
     return _db
         .collection("users")
@@ -43,6 +52,18 @@ class TripService {
       return await Trip.createTrip(
           querySnapshot.docs.first.id, querySnapshot.docs.first.data());
     });
+  }
+
+  Future<void> updateTripDay(String uid, String tripId, String dayId,
+      Map<String, dynamic> data) async {
+    await _db
+        .collection("users")
+        .doc(uid)
+        .collection("trips")
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .update(data);
   }
 
   Future<void> deleteTrip(String uid, String tripId) async {

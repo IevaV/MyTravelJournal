@@ -23,10 +23,82 @@ class PlanFutureTripView extends StatefulWidget
 }
 
 class _PlanFutureTripViewState extends State<PlanFutureTripView> {
+  TripService tripService = getIt<TripService>();
+  User user = getIt<User>();
+  late final TextEditingController _description;
+  bool descriptionEdited = false;
+
+  Future<void> updateDayPlannedState(TripDay day) async {
+    bool setAsPlanned = await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(day.planned == false
+              ? "Set Day ${day.dayNumber} as planned"
+              : "Set Day ${day.dayNumber} to in progress"),
+          actions: [
+            TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(false);
+                },
+                child: const Text('Cancel')),
+            TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(true);
+                },
+                child: const Text('Confirm')),
+          ],
+        );
+      },
+    );
+    if (setAsPlanned) {
+      try {
+        await tripService.updateTripDay(user.uid, widget.trip.tripId, day.dayId,
+            <String, dynamic>{"planned": !day.planned});
+        setState(() {
+          day.updateDayStatus(!day.planned);
+        });
+        if (widget.trip.days.where((day) => day.planned == true).length ==
+            widget.trip.days.length) {
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: Text(
+                    "All days are planned! Trip will start on ${widget.trip.startDate}"),
+                actions: [
+                  TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text('Ok')),
+                ],
+              );
+            },
+          );
+        }
+      } catch (e) {
+        await showErrorDialog(
+            context, 'Something went wrong, please try again later');
+      }
+    }
+  }
+
+  @override
+  void initState() {
+    _description = TextEditingController();
+    _description.text = widget.trip.description;
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _description.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    TripService tripService = getIt<TripService>();
-    User user = getIt<User>();
     callOnce((context) async {
       for (var i = 0; i < widget.trip.days.length; i++) {
         List<Checkpoint> checkpoints = await tripService.getTripDayCheckpoints(
@@ -36,8 +108,9 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
     });
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        title: const Text('Plan Your Trip'),
+        title: Text(widget.trip.title),
         centerTitle: true,
         leading: BackButton(
           onPressed: () async {
@@ -58,11 +131,50 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                   children: [
                     Container(
                       padding: const EdgeInsets.all(10.0),
-                      child: Text(widget.trip.title),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(10.0),
-                      child: Text(widget.trip.description),
+                      child: TextField(
+                        controller: _description,
+                        enableSuggestions: false,
+                        autocorrect: false,
+                        maxLength: 100,
+                        maxLines: 3,
+                        onChanged: (descriptionInputText) {
+                          if (descriptionInputText == widget.trip.description) {
+                            descriptionEdited = false;
+                          } else {
+                            descriptionEdited = true;
+                          }
+                          _description.value = TextEditingValue(
+                            text: descriptionInputText,
+                          );
+                          setState(() {});
+                        },
+                        decoration: InputDecoration(
+                            labelText: 'Description',
+                            filled: true,
+                            border: InputBorder.none,
+                            suffixIcon: descriptionEdited
+                                ? IconButton(
+                                    onPressed: () async {
+                                      try {
+                                        await tripService.updateTrip(
+                                            user.uid,
+                                            widget.trip.tripId,
+                                            <String, dynamic>{
+                                              "description": _description.text,
+                                            });
+                                        widget.trip.description =
+                                            _description.text;
+                                        descriptionEdited = false;
+                                        FocusScope.of(context).unfocus();
+                                        setState(() {});
+                                      } catch (e) {
+                                        await showErrorDialog(context,
+                                            'Something went wrong, please try again later');
+                                      }
+                                    },
+                                    icon: const Icon(Icons.check_rounded))
+                                : null),
+                      ),
                     ),
                     Container(
                       padding: const EdgeInsets.all(10.0),
@@ -133,6 +245,17 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                         },
                         child: ListTile(
                           key: ValueKey(day),
+                          leading: ElevatedButton(
+                            onPressed: () async {
+                              await updateDayPlannedState(day);
+                            },
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: day.planned == false
+                                    ? Colors.grey
+                                    : Colors.green,
+                                shape: const CircleBorder()),
+                            child: Text(day.dayNumber.toString()),
+                          ),
                           title: Text("Day ${day.dayNumber}"),
                           subtitle:
                               Text("${day.dayId} and ${day.date.toString()}"),
