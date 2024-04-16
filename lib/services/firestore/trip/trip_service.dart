@@ -45,6 +45,15 @@ class TripService {
     });
   }
 
+  Future<void> deleteTrip(String uid, String tripId) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .delete();
+  }
+
   Future<void> batchUpdateAfterAddingNewTrip(String uid, String title,
       String description, DateTime startDate, DateTime endDate) async {
     final batch = _db.batch();
