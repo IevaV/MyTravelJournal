@@ -6,6 +6,8 @@ import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/user.dart';
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
+import 'package:mytraveljournal/utilities/date_helper.dart';
+import 'package:collection/collection.dart';
 
 class AddFutureTripView extends StatefulWidget {
   const AddFutureTripView({super.key});
@@ -22,6 +24,7 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
   bool _validateTitleInput = false;
   bool _validateDescriptionInput = false;
   bool _validateDateInput = false;
+  String tripDateErrorMessage = "Please select Trip start and end dates";
 
   @override
   void initState() {
@@ -58,6 +61,7 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                 padding: const EdgeInsets.all(10.0),
                 child: TextField(
                   controller: _title,
+                  maxLength: 30,
                   decoration: InputDecoration(
                     labelText: 'Title',
                     border: const OutlineInputBorder(),
@@ -70,6 +74,8 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                 padding: const EdgeInsets.all(10.0),
                 child: TextField(
                   controller: _description,
+                  maxLength: 100,
+                  maxLines: 3,
                   decoration: InputDecoration(
                     labelText: 'Description',
                     border: const OutlineInputBorder(),
@@ -85,6 +91,7 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                   textController: _date,
                   pickedDates: selectedDates,
                   validateSelectedDates: _validateDateInput,
+                  textFieldErrorMessage: tripDateErrorMessage,
                 ),
               ),
               FilledButton(
@@ -94,10 +101,39 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                   child: const Text('Cancel')),
               FilledButton(
                 onPressed: () async {
+                  Trip? trip;
+                  if (selectedDates['dates'] != null) {
+                    trip = user.userTrips.firstWhereOrNull(
+                      (userTrip) {
+                        List<DateTime> datesBetweenSelect = datesBetween(
+                            selectedDates['dates']!.start,
+                            selectedDates['dates']!.end);
+                        List<DateTime> datesBetweenExisting =
+                            datesBetween(userTrip.startDate, userTrip.endDate);
+                        return (datesBetweenSelect
+                                    .contains(userTrip.startDate) ||
+                                datesBetweenSelect
+                                    .contains(userTrip.endDate)) ||
+                            (datesBetweenExisting
+                                    .contains(selectedDates['dates']!.start) ||
+                                datesBetweenExisting
+                                    .contains(selectedDates['dates']!.end));
+                      },
+                    );
+                  }
+
                   setState(() {
                     _validateTitleInput = _title.text.isEmpty;
                     _validateDescriptionInput = _description.text.isEmpty;
-                    _validateDateInput = selectedDates['dates'] == null;
+                    if (selectedDates['dates'] == null) {
+                      tripDateErrorMessage =
+                          "Please select Trip start and end dates";
+                    } else if (trip != null) {
+                      tripDateErrorMessage =
+                          "Selected dates are overlapping with existing Trip: ${trip.title}";
+                    }
+                    _validateDateInput =
+                        selectedDates['dates'] == null || trip != null;
                   });
 
                   if (!_validateTitleInput &&
