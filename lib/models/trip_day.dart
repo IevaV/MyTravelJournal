@@ -7,12 +7,14 @@ class TripDay extends ChangeNotifier {
       {required this.dayId,
       required this.dayNumber,
       required this.date,
-      this.checkpoints = const []});
+      this.checkpoints = const [],
+      this.planned = false});
 
   String dayId;
   int dayNumber;
   DateTime date;
   List<Checkpoint> checkpoints;
+  bool planned;
 
   factory TripDay.fromFirestore(QueryDocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -21,7 +23,13 @@ class TripDay extends ChangeNotifier {
       dayNumber: data["dayNumber"] ?? 0,
       date: data["date"].toDate() ?? DateTime.now(),
       checkpoints: [],
+      planned: data["planned"] ?? false,
     );
+  }
+
+  void updateDayStatus(bool planned) {
+    this.planned = planned;
+    notifyListeners();
   }
 
   void addCheckpoint(Checkpoint checkpoint) {

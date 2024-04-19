@@ -11,6 +11,7 @@ import 'package:mytraveljournal/models/user.dart';
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 import 'package:mytraveljournal/utilities/date_helper.dart';
 import 'package:watch_it/watch_it.dart';
+import 'package:intl/intl.dart';
 
 class PlanFutureTripView extends StatefulWidget
     with WatchItStatefulWidgetMixin {
@@ -23,21 +24,322 @@ class PlanFutureTripView extends StatefulWidget
 }
 
 class _PlanFutureTripViewState extends State<PlanFutureTripView> {
+  TripService tripService = getIt<TripService>();
+  User user = getIt<User>();
+  late final TextEditingController _description;
+  bool descriptionEdited = false;
+
+  Future<void> updateDayPlannedState(TripDay day) async {
+    bool setAsPlanned = await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(day.planned == false
+              ? "Set Day ${day.dayNumber} as planned"
+              : "Set Day ${day.dayNumber} to in progress"),
+          actions: [
+            TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(false);
+                },
+                child: const Text('Cancel')),
+            TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(true);
+                },
+                child: const Text('Confirm')),
+          ],
+        );
+      },
+    );
+    if (setAsPlanned) {
+      try {
+        await tripService.updateTripDay(user.uid, widget.trip.tripId, day.dayId,
+            <String, dynamic>{"planned": !day.planned});
+        setState(() {
+          day.updateDayStatus(!day.planned);
+        });
+        if (widget.trip.days.where((day) => day.planned == true).length ==
+            widget.trip.days.length) {
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: Text(
+                    "All days are planned! Trip will start on ${widget.trip.startDate}"),
+                actions: [
+                  TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text('Ok')),
+                ],
+              );
+            },
+          );
+        }
+      } catch (e) {
+        await showErrorDialog(
+            context, 'Something went wrong, please try again later');
+      }
+    }
+  }
+
+  Future<DateTimeRange?> _selectDateRange(BuildContext context) async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      keyboardType: TextInputType.text,
+      initialDateRange:
+          DateTimeRange(start: widget.trip.startDate, end: widget.trip.endDate),
+      firstDate: DateTime(
+          DateTime.now().year, DateTime.now().month, DateTime.now().day),
+      lastDate: DateTime(DateTime.now().year + 5),
+    );
+    if (picked != null) {
+      return picked;
+    }
+    return null;
+  }
+
+  Future<void> editTripDates() async {
+    DateTimeRange? selectedDates = await _selectDateRange(context);
+    if (selectedDates != null &&
+        (selectedDates.start != widget.trip.startDate ||
+            selectedDates.end != widget.trip.endDate)) {
+      if (widget.trip.days.length > selectedDates.duration.inDays + 1) {
+        List<TripDay> tripDaysModified = widget.trip.days.toList();
+        int daysToDelete =
+            tripDaysModified.length - (selectedDates.duration.inDays + 1);
+        Map<String, dynamic> checkboxValues = {};
+        for (var day in tripDaysModified) {
+          checkboxValues["Day ${day.dayNumber}"] = {
+            "day": day,
+            "checked": false
+          };
+        }
+        int totalChecked = checkboxValues.entries
+            .where((e) => e.value == true)
+            .toList()
+            .length;
+        bool? confirmDeleteDays = await selectDaysToDelete(
+            tripDaysModified, checkboxValues, daysToDelete, totalChecked);
+        if (confirmDeleteDays == true) {
+          List<MapEntry<String, dynamic>> selectedDays = checkboxValues.entries
+              .where((e) => e.value["checked"] == true)
+              .toList();
+          List<TripDay> selectedDaysToDelete =
+              selectedDays.map((data) => data.value["day"] as TripDay).toList();
+          for (var day in selectedDaysToDelete) {
+            tripDaysModified.remove(day);
+          }
+          List<DateTime> dateRange =
+              datesBetween(selectedDates.start, selectedDates.end);
+          for (var i = 0; i < tripDaysModified.length; i++) {
+            tripDaysModified[i].dayNumber = i + 1;
+            tripDaysModified[i].date = dateRange[i];
+          }
+          try {
+            await tripService.batchUpdateAfterEditedTripDates(
+                user.uid,
+                widget.trip.tripId,
+                tripDaysModified,
+                selectedDates.start,
+                selectedDates.end,
+                null,
+                selectedDaysToDelete,
+                widget.trip.days.length);
+            widget.trip.days = tripDaysModified;
+            widget.trip.startDate = selectedDates.start;
+            widget.trip.endDate = selectedDates.end;
+            setState(() {});
+          } catch (e) {
+            await showErrorDialog(
+                context, 'Something went wrong, please try again later');
+          }
+        }
+      } else if (widget.trip.days.length < selectedDates.duration.inDays + 1) {
+        List<TripDay> tripDaysModified = widget.trip.days.toList();
+        if (selectedDates.start.isAtSameMomentAs(widget.trip.startDate)) {
+          List<DateTime> dates = datesBetween(
+              widget.trip.endDate.add(const Duration(days: 1)),
+              selectedDates.end);
+          try {
+            await tripService.batchUpdateAfterEditedTripDates(
+                user.uid,
+                widget.trip.tripId,
+                [],
+                null,
+                selectedDates.end,
+                dates,
+                null,
+                widget.trip.days.length);
+            List<TripDay> allTripDays =
+                await tripService.getTripDays(user.uid, widget.trip.tripId);
+            widget.trip.days = allTripDays;
+            widget.trip.endDate = selectedDates.end;
+            setState(() {});
+          } catch (e) {
+            await showErrorDialog(
+                context, 'Something went wrong, please try again later');
+          }
+        } else {
+          List<DateTime> dateRange =
+              datesBetween(selectedDates.start, selectedDates.end);
+          for (var i = 0; i < tripDaysModified.length; i++) {
+            tripDaysModified[i].date = dateRange[i];
+          }
+          List<DateTime> dates = dateRange.sublist(tripDaysModified.length);
+          DateTime? endDateModified =
+              selectedDates.end.isAtSameMomentAs(widget.trip.endDate)
+                  ? null
+                  : selectedDates.end;
+          try {
+            await tripService.batchUpdateAfterEditedTripDates(
+                user.uid,
+                widget.trip.tripId,
+                tripDaysModified,
+                selectedDates.start,
+                endDateModified,
+                dates,
+                null,
+                widget.trip.days.length);
+            List<TripDay> allTripDays =
+                await tripService.getTripDays(user.uid, widget.trip.tripId);
+            widget.trip.days = allTripDays;
+            widget.trip.startDate = selectedDates.start;
+            widget.trip.endDate = selectedDates.end;
+            setState(() {});
+          } catch (e) {
+            await showErrorDialog(
+                context, 'Something went wrong, please try again later');
+          }
+        }
+      } else if (widget.trip.days.length == selectedDates.duration.inDays + 1) {
+        List<TripDay> tripDaysModified = widget.trip.days.toList();
+        List<DateTime> dates =
+            datesBetween(selectedDates.start, selectedDates.end);
+        for (var i = 0; i < dates.length; i++) {
+          tripDaysModified[i].date = dates[i];
+        }
+        try {
+          await tripService.batchUpdateAfterEditedTripDates(
+              user.uid,
+              widget.trip.tripId,
+              tripDaysModified,
+              selectedDates.start,
+              selectedDates.end,
+              null,
+              null,
+              widget.trip.days.length);
+          widget.trip.days = tripDaysModified;
+          widget.trip.startDate = selectedDates.start;
+          widget.trip.endDate = selectedDates.end;
+          setState(() {});
+        } catch (e) {
+          await showErrorDialog(
+              context, 'Something went wrong, please try again later');
+        }
+      }
+    }
+  }
+
+  Future<bool?> selectDaysToDelete(
+      tripDaysModified, checkboxValues, daysToDelete, totalChecked) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              child: Column(
+                children: [
+                  Text(
+                      "Your selected Date range is shorter than the original Trip length. Please select $daysToDelete days to delete!"),
+                  Flexible(
+                    flex: 3,
+                    child: ListView.builder(
+                        padding: const EdgeInsets.all(8),
+                        itemCount: tripDaysModified.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          TripDay tripDay = tripDaysModified[index];
+                          return CheckboxListTile(
+                            value: checkboxValues["Day ${tripDay.dayNumber}"]
+                                ["checked"],
+                            title: Text("Day ${tripDay.dayNumber}"),
+                            enabled: (daysToDelete == totalChecked &&
+                                    checkboxValues["Day ${tripDay.dayNumber}"]
+                                            ["checked"] ==
+                                        false)
+                                ? false
+                                : true,
+                            onChanged: (bool? value) {
+                              checkboxValues["Day ${tripDay.dayNumber}"]
+                                  ["checked"] = value!;
+                              totalChecked = checkboxValues.entries
+                                  .where((e) => e.value["checked"] == true)
+                                  .toList()
+                                  .length;
+                              setState(() {});
+                            },
+                          );
+                        }),
+                  ),
+                  const Divider(height: 0),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop(false);
+                        },
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: daysToDelete == totalChecked
+                            ? () async {
+                                Navigator.of(context).pop(true);
+                              }
+                            : null,
+                        child: const Text('Confirm'),
+                      ),
+                    ],
+                  )
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  void initState() {
+    _description = TextEditingController();
+    _description.text = widget.trip.description;
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _description.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    TripService tripService = getIt<TripService>();
-    User user = getIt<User>();
     callOnce((context) async {
       for (var i = 0; i < widget.trip.days.length; i++) {
         List<Checkpoint> checkpoints = await tripService.getTripDayCheckpoints(
             user.uid, widget.trip.tripId, widget.trip.days[i].dayId);
         widget.trip.days[i].checkpoints = checkpoints;
       }
+      setState(() {});
     });
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        title: const Text('Plan Your Trip'),
+        title: Text(widget.trip.title),
         centerTitle: true,
         leading: BackButton(
           onPressed: () async {
@@ -50,28 +352,73 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
       body: SafeArea(
         child: Center(
           child: Column(
-            //mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               Flexible(
-                flex: 2,
+                flex: 1,
                 child: Column(
+                  children: [
+                    TextField(
+                      controller: _description,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                      maxLength: 100,
+                      maxLines: 3,
+                      onChanged: (descriptionInputText) {
+                        if (descriptionInputText == widget.trip.description) {
+                          descriptionEdited = false;
+                        } else {
+                          descriptionEdited = true;
+                        }
+                        _description.value = TextEditingValue(
+                          text: descriptionInputText,
+                        );
+                        setState(() {});
+                      },
+                      decoration: InputDecoration(
+                          labelText: 'Description',
+                          filled: true,
+                          border: InputBorder.none,
+                          suffixIcon: descriptionEdited
+                              ? IconButton(
+                                  onPressed: () async {
+                                    try {
+                                      await tripService.updateTrip(user.uid,
+                                          widget.trip.tripId, <String, dynamic>{
+                                        "description": _description.text,
+                                      });
+                                      widget.trip.description =
+                                          _description.text;
+                                      descriptionEdited = false;
+                                      FocusScope.of(context).unfocus();
+                                      setState(() {});
+                                    } catch (e) {
+                                      await showErrorDialog(context,
+                                          'Something went wrong, please try again later');
+                                    }
+                                  },
+                                  icon: const Icon(Icons.check_rounded))
+                              : null),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                flex: 1,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
                       padding: const EdgeInsets.all(10.0),
-                      child: Text(widget.trip.title),
+                      child: Text(
+                          "${DateFormat('dd/MM/yyyy').format(widget.trip.startDate)} - ${DateFormat('dd/MM/yyyy').format(widget.trip.endDate)}"),
                     ),
-                    Container(
-                      padding: const EdgeInsets.all(10.0),
-                      child: Text(widget.trip.description),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(10.0),
-                      child: Text(widget.trip.startDate.toString()),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(10.0),
-                      child: Text(widget.trip.endDate.toString()),
-                    ),
+                    IconButton.filledTonal(
+                      onPressed: () async {
+                        await editTripDates();
+                      },
+                      icon: const Icon(Icons.calendar_month),
+                    )
                   ],
                 ),
               ),
@@ -133,9 +480,20 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                         },
                         child: ListTile(
                           key: ValueKey(day),
+                          leading: ElevatedButton(
+                            onPressed: () async {
+                              await updateDayPlannedState(day);
+                            },
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: day.planned == false
+                                    ? Colors.grey
+                                    : Colors.green,
+                                shape: const CircleBorder()),
+                            child: Text(day.dayNumber.toString()),
+                          ),
                           title: Text("Day ${day.dayNumber}"),
-                          subtitle:
-                              Text("${day.dayId} and ${day.date.toString()}"),
+                          subtitle: Text(
+                              "Checkpoints: ${day.checkpoints.length} \n${DateFormat('dd/MM/yyyy').format(day.date)}"),
                           onTap: () {
                             GoRouter.of(context).push(
                                 '/plan-future-trip-day?tripId=${widget.trip.tripId}',
@@ -175,37 +533,34 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                   },
                 ),
               ),
-              Flexible(
-                flex: 1,
-                child: FilledButton(
-                  onPressed: () async {
-                    try {
-                      int dayNumber = widget.trip.days.length + 1;
-                      DateTime newDate = widget.trip.days.last.date
-                          .add(const Duration(days: 1));
-                      await tripService.batchUpdateAfterAddingNewTripDay(
-                          user.uid, widget.trip.tripId, dayNumber, newDate);
-                      List<TripDay> updatedDaysList = await tripService
-                          .getTripDays(user.uid, widget.trip.tripId);
-                      setState(() {
-                        widget.trip.endDate = newDate;
-                        widget.trip.days = updatedDaysList.toList();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Day $dayNumber has been added!'),
-                          ),
-                        );
-                      });
-                    } catch (e) {
-                      if (context.mounted) {
-                        await showErrorDialog(context,
-                            'Something went wrong, please try again later');
-                      }
+              FilledButton(
+                onPressed: () async {
+                  try {
+                    int dayNumber = widget.trip.days.length + 1;
+                    DateTime newDate =
+                        widget.trip.days.last.date.add(const Duration(days: 1));
+                    await tripService.batchUpdateAfterAddingNewTripDay(
+                        user.uid, widget.trip.tripId, dayNumber, newDate);
+                    List<TripDay> updatedDaysList = await tripService
+                        .getTripDays(user.uid, widget.trip.tripId);
+                    setState(() {
+                      widget.trip.endDate = newDate;
+                      widget.trip.days = updatedDaysList.toList();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Day $dayNumber has been added!'),
+                        ),
+                      );
+                    });
+                  } catch (e) {
+                    if (context.mounted) {
+                      await showErrorDialog(context,
+                          'Something went wrong, please try again later');
                     }
-                  },
-                  child: const Text('Add new day'),
-                ),
-              )
+                  }
+                },
+                child: const Text('Add new day'),
+              ),
             ],
           ),
         ),
