@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
@@ -103,9 +104,26 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
 
   Future<void> editTripDates() async {
     DateTimeRange? selectedDates = await _selectDateRange(context);
+    Trip? trip;
+    if (selectedDates != null) {
+      trip = user.userTrips.firstWhereOrNull(
+        (userTrip) {
+          List<DateTime> datesBetweenSelected =
+              datesBetween(selectedDates.start, selectedDates.end);
+          List<DateTime> datesBetweenExisting =
+              datesBetween(selectedDates.start, selectedDates.end);
+          return (datesBetweenSelected.contains(userTrip.startDate) ||
+                  datesBetweenSelected.contains(userTrip.endDate) ||
+                  datesBetweenExisting.contains(selectedDates.start) ||
+                  datesBetweenExisting.contains(selectedDates.end)) &&
+              userTrip.tripId != widget.trip.tripId;
+        },
+      );
+    }
     if (selectedDates != null &&
         (selectedDates.start != widget.trip.startDate ||
-            selectedDates.end != widget.trip.endDate)) {
+            selectedDates.end != widget.trip.endDate) &&
+        trip == null) {
       if (widget.trip.days.length > selectedDates.duration.inDays + 1) {
         List<TripDay> tripDaysModified = widget.trip.days.toList();
         int daysToDelete =
@@ -240,6 +258,9 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
               context, 'Something went wrong, please try again later');
         }
       }
+    } else if (trip != null) {
+      showErrorDialog(context,
+          "Selected dates are overlapping with existing Trip: ${trip.title}");
     }
   }
 

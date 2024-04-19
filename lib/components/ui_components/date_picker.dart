@@ -5,12 +5,14 @@ class DatePicker extends StatelessWidget {
       {super.key,
       required this.textController,
       required this.pickedDates,
-      required this.validateSelectedDates});
+      required this.validateSelectedDates,
+      required this.textFieldErrorMessage});
   final TextEditingController textController;
   final Map<String, dynamic> pickedDates;
   final bool validateSelectedDates;
+  final String textFieldErrorMessage;
 
-  Future<void> _selectStartDate(BuildContext context) async {
+  Future<void> _selectTripDates(BuildContext context) async {
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
       keyboardType: TextInputType.text,
@@ -31,14 +33,12 @@ class DatePicker extends StatelessWidget {
       controller: textController,
       readOnly: true,
       onTap: () {
-        _selectStartDate(context);
+        _selectTripDates(context);
       },
       decoration: InputDecoration(
         labelText: 'Start Date - End Date',
         border: const OutlineInputBorder(),
-        errorText: validateSelectedDates
-            ? "Please select Trip start and end dates"
-            : null,
+        errorText: validateSelectedDates ? textFieldErrorMessage : null,
       ),
     );
   }
