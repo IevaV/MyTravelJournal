@@ -31,7 +31,8 @@ class TripService {
     return tripDays;
   }
 
-  Future<void> updateTrip(String uid, String tripId, Map<String, dynamic> data) async {
+  Future<void> updateTrip(
+      String uid, String tripId, Map<String, dynamic> data) async {
     await _db
         .collection("users")
         .doc(uid)
@@ -216,6 +217,79 @@ class TripService {
         }
       },
     );
+  }
+
+  Future<void> batchUpdateAfterEditedTripDates(
+      String uid,
+      String tripId,
+      List<TripDay> daysToUpdate,
+      DateTime? startDate,
+      DateTime? endDate,
+      List<DateTime>? newDayDates,
+      List<TripDay>? daysToDelete,
+      int lastDayNumber) async {
+    final batch = _db.batch();
+
+    if (startDate != null) {
+      // Update date for existing days after edited trip start date
+      for (var day in daysToUpdate) {
+        var updateDayRef = _db
+            .collection('users')
+            .doc(uid)
+            .collection('trips')
+            .doc(tripId)
+            .collection("days")
+            .doc(day.dayId);
+        batch.update(
+            updateDayRef, {"date": day.date, "dayNumber": day.dayNumber});
+      }
+
+      // Update trip startDate
+      var tripRef =
+          _db.collection('users').doc(uid).collection('trips').doc(tripId);
+      batch.update(tripRef, {
+        "startDate": Timestamp.fromDate(startDate),
+      });
+    }
+
+    if (endDate != null) {
+      // Update trip endDate
+      var tripRef =
+          _db.collection('users').doc(uid).collection('trips').doc(tripId);
+      batch.update(tripRef, {
+        "endDate": Timestamp.fromDate(endDate),
+      });
+    }
+
+    if (daysToDelete != null) {
+      for (var day in daysToDelete) {
+        var deleteDayRef = _db
+            .collection('users')
+            .doc(uid)
+            .collection('trips')
+            .doc(tripId)
+            .collection("days")
+            .doc(day.dayId);
+        batch.delete(deleteDayRef);
+      }
+    } else if (newDayDates != null) {
+      for (var datetime in newDayDates) {
+        var tripDayRef = _db
+            .collection("users")
+            .doc(uid)
+            .collection("trips")
+            .doc(tripId)
+            .collection("days")
+            .doc();
+        final data = <String, dynamic>{
+          "dayNumber": ++lastDayNumber,
+          "date": Timestamp.fromDate(datetime),
+        };
+        batch.set(tripDayRef, data);
+      }
+    }
+
+    await batch.commit();
   }
 
   void cancelListenToUserTrips() async {
