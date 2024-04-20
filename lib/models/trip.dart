@@ -1,9 +1,10 @@
+import 'package:flutter/material.dart';
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
 import 'package:mytraveljournal/models/user.dart';
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 
-class Trip {
+class Trip extends ChangeNotifier {
   Trip({
     required this.tripId,
     required this.title,
@@ -32,8 +33,15 @@ class Trip {
       description: data?["description"] ?? "",
       startDate: data?["startDate"].toDate() ?? DateTime.now(),
       endDate: data?["endDate"].toDate() ?? DateTime.now(),
-      createdAt: data?["createdAt"] != null ? data!["createdAt"].toDate() : DateTime.now(),
+      createdAt: data?["createdAt"] != null
+          ? data!["createdAt"].toDate()
+          : DateTime.now(),
       days: tripDays,
     );
+  }
+
+  void updateTitle(String title) {
+    this.title = title;
+    notifyListeners();
   }
 }

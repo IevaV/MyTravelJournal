@@ -100,6 +100,7 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                   },
                   child: const Text('Cancel')),
               FilledButton(
+                child: const Text('Next'),
                 onPressed: () async {
                   Trip? trip;
                   if (selectedDates['dates'] != null) {
@@ -161,7 +162,6 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                     }
                   }
                 },
-                child: const Text('Next'),
               ),
             ],
           ),

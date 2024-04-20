@@ -16,6 +16,9 @@ class FutureTripsView extends StatelessWidget with WatchItMixin {
     User user = getIt<User>();
     TripService tripService = getIt<TripService>();
     List<Trip> userFutureTrips = watchIt<User>().userTrips;
+    for (var trip in userFutureTrips) {
+      watch(trip);
+    }
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
