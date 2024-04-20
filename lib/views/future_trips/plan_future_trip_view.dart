@@ -28,6 +28,7 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
   TripService tripService = getIt<TripService>();
   User user = getIt<User>();
   late final TextEditingController _description;
+  late final TextEditingController _tripTitle;
   bool descriptionEdited = false;
 
   Future<void> updateDayPlannedState(TripDay day) async {
@@ -336,13 +337,16 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
   @override
   void initState() {
     _description = TextEditingController();
+    _tripTitle = TextEditingController();
     _description.text = widget.trip.description;
+    _tripTitle.text = widget.trip.title;
     super.initState();
   }
 
   @override
   void dispose() {
     _description.dispose();
+    _tripTitle.dispose();
     super.dispose();
   }
 
@@ -369,6 +373,59 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
             }
           },
         ),
+        actions: [
+          IconButton(
+              onPressed: () {
+                showDialog(
+                    context: context,
+                    builder: (context) {
+                      return Dialog(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text("Edit trip Title"),
+                            TextField(
+                              controller: _tripTitle,
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                  },
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () async {
+                                    try {
+                                      await tripService.updateTrip(user.uid,
+                                          widget.trip.tripId, <String, dynamic>{
+                                        "title": _tripTitle.text,
+                                      });
+                                      widget.trip.updateTitle(_tripTitle.text);
+                                      setState(() {});
+                                      Navigator.of(context).pop();
+                                    } catch (e) {
+                                      await showErrorDialog(context,
+                                          'Something went wrong, please try again later');
+                                    }
+                                    // widget.trip
+                                    //     .updateTitle(_tripTitle.value.text);
+                                    // setState(() {});
+                                    // Navigator.of(context).pop();
+                                  },
+                                  child: const Text('Save'),
+                                ),
+                              ],
+                            )
+                          ],
+                        ),
+                      );
+                    });
+              },
+              icon: Icon(Icons.edit))
+        ],
       ),
       body: SafeArea(
         child: Center(
