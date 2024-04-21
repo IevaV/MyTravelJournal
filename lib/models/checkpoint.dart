@@ -11,7 +11,8 @@ class Checkpoint {
       required this.marker,
       this.checkpointId,
       this.title,
-      this.polyline});
+      this.polyline,
+      this.isVisited = false});
 
   int chekpointNumber;
   String? checkpointId;
@@ -22,6 +23,7 @@ class Checkpoint {
   late DateTime departureTime;
   Marker marker;
   Polyline? polyline;
+  bool isVisited;
   // List<LatLng>? polylineCoordinates;
 
   factory Checkpoint.fromFirestore(QueryDocumentSnapshot doc) {
@@ -57,6 +59,7 @@ class Checkpoint {
       checkpointId: doc.id,
       polyline: polyline,
       marker: marker,
+      isVisited: data["isVisited"] ?? false,
     );
   }
 }

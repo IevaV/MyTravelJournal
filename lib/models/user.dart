@@ -7,7 +7,8 @@ class User extends ChangeNotifier {
   User();
 
   late String uid;
-  final List<Trip> userTrips = [];
+  List<Trip> userTrips = [];
+  Trip? ongoingTrip;
 
   void addTrip(Trip trip) {
     userTrips.insert(0, trip);
@@ -16,6 +17,6 @@ class User extends ChangeNotifier {
 
   Future<void> assignUserData(String uid) async {
     this.uid = uid;
-    getIt<TripService>().listenToUserTrips();
+    userTrips = await getIt<TripService>().getAllUserTrips(uid);
   }
 }

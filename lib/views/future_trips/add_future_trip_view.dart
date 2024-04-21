@@ -149,6 +149,7 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                         selectedDates['dates']!.end,
                       );
                       Trip trip = await tripService.getLatestUserTrip(user.uid);
+                      user.addTrip(trip);
                       context.push('/plan-future-trip', extra: trip);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
