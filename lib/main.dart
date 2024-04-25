@@ -125,6 +125,7 @@ void main() async {
   runApp(
     MaterialApp.router(
       routerConfig: router,
+      theme: ThemeData(fontFamily: 'Nunito'),
     ),
   );
 }
