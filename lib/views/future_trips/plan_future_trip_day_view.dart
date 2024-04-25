@@ -45,6 +45,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
   TripService tripService = getIt<TripService>();
   User user = getIt<User>();
   late final TextEditingController _checkpointTitle;
+  late final TextEditingController _departureTime;
   PolylinePoints polylinePoints = PolylinePoints();
   String checkpointPositionOption = "Add at end";
   bool selectCheckpointEnabled = false;
@@ -55,6 +56,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     currentLocation();
     searchController = SearchController();
     _checkpointTitle = TextEditingController();
+    _departureTime = TextEditingController();
     super.initState();
   }
 
@@ -62,6 +64,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
   void dispose() async {
     searchController.dispose();
     _checkpointTitle.dispose();
+    _departureTime.dispose();
     super.dispose();
   }
 
@@ -518,6 +521,74 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     );
   }
 
+  Future<void> _selectDepartureTime(
+      BuildContext context, Checkpoint start, Checkpoint destination) async {
+    final TimeOfDay? time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (time != null) {
+      int timeToDestination = int.parse(
+          destination.polylineDuration!.replaceAll(RegExp(r'[^0-9]'), ''));
+      TimeOfDay? arrivalTime = TimeOfDay.fromDateTime(
+        DateTime(2024, 4, 23, time.hour, time.minute).add(
+          Duration(seconds: timeToDestination),
+        ),
+      );
+      try {
+        Map<String, dynamic> destinationTimeData = {
+          "departureTime": {
+            "hour": time.hour,
+            "minute": time.minute,
+          },
+        };
+        Map<String, dynamic> arrivalTimeData = {
+          "arrivalTime": {
+            "hour": arrivalTime.hour,
+            "minute": arrivalTime.minute,
+          },
+        };
+        await tripService.updateCheckpoint(user.uid, widget.tripId,
+            widget.tripDay.dayId, start.checkpointId!, destinationTimeData);
+        await tripService.updateCheckpoint(user.uid, widget.tripId,
+            widget.tripDay.dayId, destination.checkpointId!, arrivalTimeData);
+        start.departureTime = time;
+        destination.arrivalTime = arrivalTime;
+        setState(() {});
+      } catch (e) {
+        print(e);
+        await showErrorDialog(
+            context, 'Something went wrong, please try again later');
+      }
+    }
+  }
+
+  Future<void> _selectArrivalTime(
+      BuildContext context, Checkpoint destination) async {
+    final TimeOfDay? time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (time != null) {
+      try {
+        Map<String, dynamic> arrivalTimeData = {
+          "arrivalTime": {
+            "hour": time.hour,
+            "minute": time.minute,
+          },
+        };
+        await tripService.updateCheckpoint(user.uid, widget.tripId,
+            widget.tripDay.dayId, destination.checkpointId!, arrivalTimeData);
+        destination.arrivalTime = time;
+        setState(() {});
+      } catch (e) {
+        print(e);
+        await showErrorDialog(
+            context, 'Something went wrong, please try again later');
+      }
+    }
+  }
+
   Future<Polyline> addPolyline(Checkpoint start, Checkpoint end) async {
     http.Response response =
         await googleMapsService.fetchRoute(start.coordinates, end.coordinates);
@@ -530,6 +601,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
         polylineId: PolylineId(const Uuid().v4()),
         points: coords,
         color: Colors.blue.withOpacity(0.75));
+    end.polylineDuration = routeData["routes"][0]["duration"];
     end.polyline = polyline;
     return polyline;
   }
@@ -646,6 +718,22 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                       );
                     },
                   ),
+                  Positioned.fill(
+                    child: Align(
+                        alignment: Alignment.lerp(
+                            Alignment.centerRight, Alignment.bottomRight, 0.5)!,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: FloatingActionButton(
+                            onPressed: (() async {
+                              await animateGoogleMapsCamera(
+                                  currentPosition.latitude,
+                                  currentPosition.longitude);
+                            }),
+                            child: const Icon(Icons.location_searching),
+                          ),
+                        )),
+                  ),
                   DraggableScrollableSheet(
                     snap: true,
                     maxChildSize: 0.5,
@@ -658,9 +746,106 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                         decoration: BoxDecoration(
                           color: Theme.of(context).canvasColor,
                         ),
-                        child: ListView.builder(
+                        child: ListView.separated(
                           controller: scrollController,
                           itemCount: checkpoints.length + 1,
+                          separatorBuilder: (context, index) {
+                            if (index > 0) {
+                              return SizedBox(
+                                height: 120,
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        Container(
+                                          margin: const EdgeInsets.only(
+                                              right: 10.0, top: 10.0),
+                                          height: 38,
+                                          child: ElevatedButton.icon(
+                                            label: Text(
+                                              checkpoints[index - 1]
+                                                          .departureTime ==
+                                                      null
+                                                  ? "Select departure time"
+                                                  : "Leaving at ${(checkpoints[index - 1].departureTime!.hour).toString().padLeft(2, '0')}:${(checkpoints[index - 1].departureTime!.minute).toString().padLeft(2, '0')}",
+                                              style: const TextStyle(
+                                                  color: Colors.white),
+                                            ),
+                                            icon: const Icon(
+                                              Icons.access_time,
+                                              color: Colors.white,
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  const Color(0xff7D77FF),
+                                            ),
+                                            onPressed: () {
+                                              // TODO if departure time != null then:
+                                              // arrivalTime button text == "Arriving at $arrivalTime" (Calculated departureTime + googleMapsDuration result) and arrivalTime button set as enabled
+                                              _selectDepartureTime(
+                                                  context,
+                                                  checkpoints[index - 1],
+                                                  checkpoints[index]);
+                                            },
+                                          ),
+                                        )
+                                      ],
+                                    ),
+                                    const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.arrow_downward,
+                                        ),
+                                      ],
+                                    ),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          margin:
+                                              const EdgeInsets.only(left: 10.0),
+                                          height: 38,
+                                          child: ElevatedButton.icon(
+                                            label: Text(
+                                              checkpoints[index].arrivalTime ==
+                                                      null
+                                                  ? "Provide departure time"
+                                                  : "Arriving at ${(checkpoints[index].arrivalTime!.hour).toString().padLeft(2, '0')}:${(checkpoints[index].arrivalTime!.minute).toString().padLeft(2, '0')}",
+                                              style: const TextStyle(
+                                                  color: Colors.white),
+                                            ),
+                                            icon: const Icon(
+                                              Icons.access_time,
+                                              color: Colors.white,
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  const Color(0xff7D77FF),
+                                            ),
+                                            onPressed: checkpoints[index]
+                                                        .arrivalTime ==
+                                                    null
+                                                ? null
+                                                : () async {
+                                                    await _selectArrivalTime(
+                                                        context,
+                                                        checkpoints[index]);
+                                                  },
+                                          ),
+                                        )
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            } else {
+                              return const Divider();
+                            }
+                          },
                           itemBuilder: (BuildContext context, int index) {
                             if (index == 0) {
                               return Center(
@@ -680,60 +865,71 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                             Checkpoint checkpoint = checkpoints.firstWhere(
                                 (checkpoint) =>
                                     checkpoint.chekpointNumber == index);
-                            return ListTile(
-                              title: Text(
-                                "Checkpoint ${checkpoint.chekpointNumber}",
+                            return Container(
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 6.0),
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.rectangle,
+                                color: Colors.amber,
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(12.0),
+                                ),
                               ),
-                              subtitle: Text(checkpoint.title != null
-                                  ? checkpoint.title!
-                                  : ""),
-                              onTap: (() async {
-                                await animateGoogleMapsCamera(
-                                    checkpoint.coordinates.latitude,
-                                    checkpoint.coordinates.longitude);
-                                await mapController.showMarkerInfoWindow(
-                                    checkpoint.marker.markerId);
-                              }),
-                              trailing: PopupMenuButton(
-                                itemBuilder: (context) {
-                                  return [
-                                    PopupMenuItem(
-                                      onTap: (() async {
-                                        await updateCheckpoint(
-                                            checkpoint, checkpoints);
-                                      }),
-                                      child: const Row(
-                                        children: [
-                                          Padding(
-                                            padding: EdgeInsets.all(8),
-                                            child: Icon(Icons.edit),
-                                          ),
-                                          Text('Edit')
-                                        ],
-                                      ),
-                                    ),
-                                    PopupMenuItem(
-                                      onTap: (() async {
-                                        bool? confirmDelete =
-                                            await showDeleteDialog(context,
-                                                'Checkpoint ${checkpoint.chekpointNumber}?');
-                                        if (confirmDelete == true) {
-                                          await deleteCheckpoint(
+                              child: ListTile(
+                                title: Text(
+                                  "Checkpoint ${checkpoint.chekpointNumber}",
+                                ),
+                                subtitle: Text(checkpoint.title != null
+                                    ? checkpoint.title!
+                                    : ""),
+                                onTap: (() async {
+                                  await animateGoogleMapsCamera(
+                                      checkpoint.coordinates.latitude,
+                                      checkpoint.coordinates.longitude);
+                                  await mapController.showMarkerInfoWindow(
+                                      checkpoint.marker.markerId);
+                                }),
+                                trailing: PopupMenuButton(
+                                  itemBuilder: (context) {
+                                    return [
+                                      PopupMenuItem(
+                                        onTap: (() async {
+                                          await updateCheckpoint(
                                               checkpoint, checkpoints);
-                                        }
-                                      }),
-                                      child: const Row(
-                                        children: [
-                                          Padding(
-                                            padding: EdgeInsets.all(8),
-                                            child: Icon(Icons.delete),
-                                          ),
-                                          Text('Delete')
-                                        ],
+                                        }),
+                                        child: const Row(
+                                          children: [
+                                            Padding(
+                                              padding: EdgeInsets.all(8),
+                                              child: Icon(Icons.edit),
+                                            ),
+                                            Text('Edit')
+                                          ],
+                                        ),
                                       ),
-                                    )
-                                  ];
-                                },
+                                      PopupMenuItem(
+                                        onTap: (() async {
+                                          bool? confirmDelete =
+                                              await showDeleteDialog(context,
+                                                  'Checkpoint ${checkpoint.chekpointNumber}?');
+                                          if (confirmDelete == true) {
+                                            await deleteCheckpoint(
+                                                checkpoint, checkpoints);
+                                          }
+                                        }),
+                                        child: const Row(
+                                          children: [
+                                            Padding(
+                                              padding: EdgeInsets.all(8),
+                                              child: Icon(Icons.delete),
+                                            ),
+                                            Text('Delete')
+                                          ],
+                                        ),
+                                      )
+                                    ];
+                                  },
+                                ),
                               ),
                             );
                           },
