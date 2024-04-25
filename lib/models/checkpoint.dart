@@ -4,23 +4,28 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 class Checkpoint {
-  Checkpoint(
-      {required this.chekpointNumber,
-      required this.address,
-      required this.coordinates,
-      required this.marker,
-      this.checkpointId,
-      this.title,
-      this.polyline,
-      this.isVisited = false});
+  Checkpoint({
+    required this.chekpointNumber,
+    required this.address,
+    required this.coordinates,
+    required this.marker,
+    this.checkpointId,
+    this.title,
+    this.polyline,
+    this.isVisited = false,
+    this.departureTime,
+    this.arrivalTime,
+    this.polylineDuration,
+  });
 
   int chekpointNumber;
   String? checkpointId;
   String? title;
   String address;
+  String? polylineDuration;
   LatLng coordinates;
-  late DateTime arrivalTime;
-  late DateTime departureTime;
+  TimeOfDay? arrivalTime;
+  TimeOfDay? departureTime;
   Marker marker;
   Polyline? polyline;
   bool isVisited;
@@ -60,6 +65,17 @@ class Checkpoint {
       polyline: polyline,
       marker: marker,
       isVisited: data["isVisited"] ?? false,
+      departureTime: data["departureTime"] != null
+          ? TimeOfDay(
+              hour: data["departureTime"]["hour"],
+              minute: data["departureTime"]["minute"])
+          : null,
+      arrivalTime: data["arrivalTime"] != null
+          ? TimeOfDay(
+              hour: data["arrivalTime"]["hour"],
+              minute: data["arrivalTime"]["minute"])
+          : null,
+      polylineDuration: data["polylineDuration"],
     );
   }
 }

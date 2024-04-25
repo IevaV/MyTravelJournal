@@ -302,6 +302,7 @@ class TripService {
             polylineCoordinate.latitude, polylineCoordinate.longitude));
       }
       data["polylineCoordinates"] = polylineGeopoints;
+      data["polylineDuration"] = checkpoint.polylineDuration;
     }
 
     return await _db
@@ -379,6 +380,7 @@ class TripService {
       batch.update(updateDayRef, {
         "checkpointNumber": checkpoint.chekpointNumber,
         "polylineCoordinates": polylineGeopoints,
+        "polylineDuration": checkpoint.polylineDuration,
       });
     }
 
@@ -409,7 +411,9 @@ class TripService {
             polylineCoordinate.latitude, polylineCoordinate.longitude));
       }
       data["polylineCoordinates"] = polylineGeopoints;
+      data["polylineDuration"] = checkpoint.polylineDuration;
     }
+
     // Find checkpoint to delete and add it to batch
     var checkpointRef = _db
         .collection('users')
