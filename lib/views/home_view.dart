@@ -1,8 +1,8 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip.dart';
@@ -19,6 +19,20 @@ class HomeView extends StatelessWidget with WatchItMixin {
 
   Column homeViewState(BuildContext context) {
     Trip? closestTrip;
+    if (user.ongoingTrip != null &&
+        DateTime.now().isAfter(user.ongoingTrip!.endDate)) {
+      callOnce((context) async {
+        try {
+          await tripService.updateTrip(
+              user.uid, user.ongoingTrip!.tripId, {"isOngoing": false});
+          user.ongoingTrip = null;
+        } catch (e) {
+          await showErrorDialog(
+              context, 'Something went wrong, please try again later');
+        }
+        user.ongoingTrip = null;
+      });
+    }
     user.ongoingTrip ??= user.userTrips
         .firstWhereOrNull((trip) => trip.startDate.isSameDate(DateTime.now()));
     if (user.ongoingTrip == null) {
@@ -39,6 +53,14 @@ class HomeView extends StatelessWidget with WatchItMixin {
               await tripService.getTripDayCheckpoints(user.uid,
                   user.ongoingTrip!.tripId, user.ongoingTrip!.days[i].dayId);
           user.ongoingTrip!.days[i].checkpoints = tripCheckpoints;
+        }
+        try {
+          await tripService.updateTrip(
+              user.uid, user.ongoingTrip!.tripId, {"isOngoing": true});
+        } catch (e) {
+          user.ongoingTrip = null;
+          await showErrorDialog(
+              context, 'Something went wrong, please try again later');
         }
       });
       return Column(

@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/trip.dart';
@@ -18,5 +19,6 @@ class User extends ChangeNotifier {
   Future<void> assignUserData(String uid) async {
     this.uid = uid;
     userTrips = await getIt<TripService>().getAllUserTrips(uid);
+    ongoingTrip = userTrips.firstWhereOrNull((trip) => trip.isOngoing == true);
   }
 }

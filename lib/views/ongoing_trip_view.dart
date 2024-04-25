@@ -1,15 +1,11 @@
 import 'package:collection/collection.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
-import 'package:mytraveljournal/models/user.dart';
-import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 import 'package:mytraveljournal/services/location/location_service.dart';
 import 'package:mytraveljournal/utilities/date_time_apis.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -113,7 +109,7 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                   LayoutBuilder(builder:
                       (BuildContext context, BoxConstraints constraints) {
                     return SizedBox(
-                      // height: constraints.maxHeight / 1.12,
+                      height: constraints.maxHeight / 1.12,
                       child: GoogleMap(
                         mapType: MapType.hybrid,
                         onMapCreated: (GoogleMapController controller) {
@@ -124,6 +120,7 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                           zoom: 14.4746,
                         ),
                         myLocationEnabled: true,
+                        myLocationButtonEnabled: false,
                         markers: Set<Marker>.of(markers),
                         polylines: Set<Polyline>.of(polylines),
                       ),
@@ -187,29 +184,202 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                       },
                     ),
                   ),
+                  Positioned.fill(
+                    child: Align(
+                      alignment: Alignment.lerp(
+                          Alignment.centerRight, Alignment.bottomRight, 0.5)!,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: FloatingActionButton(
+                          onPressed: (() async {
+                            await animateGoogleMapsCamera(
+                                currentPosition.latitude,
+                                currentPosition.longitude);
+                          }),
+                          child: const Icon(Icons.location_searching),
+                        ),
+                      ),
+                    ),
+                  ),
+                  DraggableScrollableSheet(
+                    snap: true,
+                    maxChildSize: 0.5,
+                    initialChildSize: 0.10,
+                    minChildSize: 0.10,
+                    builder: (BuildContext context,
+                        ScrollController scrollController) {
+                      return Container(
+                        clipBehavior: Clip.hardEdge,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).canvasColor,
+                        ),
+                        child: ListView.separated(
+                          controller: scrollController,
+                          itemCount: selectedTripDay.checkpoints.length + 1,
+                          separatorBuilder: (context, index) {
+                            if (index > 0) {
+                              return SizedBox(
+                                height: 120,
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        Container(
+                                          margin: const EdgeInsets.only(
+                                              right: 10.0, top: 10.0),
+                                          height: 38,
+                                          child: ElevatedButton.icon(
+                                              label: Text(
+                                                selectedTripDay
+                                                            .checkpoints[
+                                                                index - 1]
+                                                            .departureTime ==
+                                                        null
+                                                    ? "Select departure time"
+                                                    : "Leaving at ${(selectedTripDay.checkpoints[index - 1].departureTime!.hour).toString().padLeft(2, '0')}:${(selectedTripDay.checkpoints[index - 1].departureTime!.minute).toString().padLeft(2, '0')}",
+                                                style: const TextStyle(
+                                                    color: Colors.white),
+                                              ),
+                                              icon: const Icon(
+                                                Icons.access_time,
+                                                color: Colors.white,
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    const Color(0xff7D77FF),
+                                              ),
+                                              onPressed: () {}),
+                                        )
+                                      ],
+                                    ),
+                                    const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.arrow_downward,
+                                        ),
+                                      ],
+                                    ),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          margin:
+                                              const EdgeInsets.only(left: 10.0),
+                                          height: 38,
+                                          child: ElevatedButton.icon(
+                                            label: Text(
+                                              selectedTripDay.checkpoints[index]
+                                                          .arrivalTime ==
+                                                      null
+                                                  ? "Provide departure time"
+                                                  : "Arriving at ${(selectedTripDay.checkpoints[index].arrivalTime!.hour).toString().padLeft(2, '0')}:${(selectedTripDay.checkpoints[index].arrivalTime!.minute).toString().padLeft(2, '0')}",
+                                              style: const TextStyle(
+                                                  color: Colors.white),
+                                            ),
+                                            icon: const Icon(
+                                              Icons.access_time,
+                                              color: Colors.white,
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  const Color(0xff7D77FF),
+                                            ),
+                                            onPressed: selectedTripDay
+                                                        .checkpoints[index]
+                                                        .arrivalTime ==
+                                                    null
+                                                ? null
+                                                : () async {},
+                                          ),
+                                        )
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            } else {
+                              return const Divider();
+                            }
+                          },
+                          itemBuilder: (BuildContext context, int index) {
+                            if (index == 0) {
+                              return Center(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).hintColor,
+                                    borderRadius: const BorderRadius.all(
+                                        Radius.circular(10)),
+                                  ),
+                                  height: 4,
+                                  width: 40,
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 10),
+                                ),
+                              );
+                            }
+                            Checkpoint checkpoint = selectedTripDay.checkpoints
+                                .firstWhere((checkpoint) =>
+                                    checkpoint.chekpointNumber == index);
+                            return Container(
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 6.0),
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.rectangle,
+                                color: Colors.amber,
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(12.0),
+                                ),
+                              ),
+                              child: ListTile(
+                                title: Text(
+                                  "Checkpoint ${checkpoint.chekpointNumber}",
+                                ),
+                                subtitle: Text(checkpoint.title != null
+                                    ? checkpoint.title!
+                                    : ""),
+                                onTap: (() async {
+                                  await animateGoogleMapsCamera(
+                                      checkpoint.coordinates.latitude,
+                                      checkpoint.coordinates.longitude);
+                                  await mapController.showMarkerInfoWindow(
+                                      checkpoint.marker.markerId);
+                                }),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
                   Positioned(
-                      top: 90,
-                      child: Container(
-                        height: 35,
-                        decoration: const BoxDecoration(
-                            shape: BoxShape.rectangle,
-                            color: Colors.amber,
-                            borderRadius: BorderRadius.only(
-                                topRight: Radius.circular(12.0),
-                                bottomRight: Radius.circular(12.0))),
-                        child: TextButton(
-                            onPressed: () async {
-                              await animateGoogleMapsCamera(
-                                  nextCheckpoint!.coordinates.latitude,
-                                  nextCheckpoint!.coordinates.longitude);
-                              await mapController.showMarkerInfoWindow(
-                                  nextCheckpoint!.marker.markerId);
-                            },
-                            child: Text(
-                              "Next: Checkpoint ${nextCheckpoint!.chekpointNumber}",
-                              style: TextStyle(color: Colors.pink),
-                            )),
-                      )),
+                    top: 90,
+                    child: Container(
+                      height: 35,
+                      decoration: const BoxDecoration(
+                          shape: BoxShape.rectangle,
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.only(
+                              topRight: Radius.circular(12.0),
+                              bottomRight: Radius.circular(12.0))),
+                      child: TextButton(
+                        onPressed: () async {
+                          await animateGoogleMapsCamera(
+                              nextCheckpoint!.coordinates.latitude,
+                              nextCheckpoint!.coordinates.longitude);
+                          await mapController.showMarkerInfoWindow(
+                              nextCheckpoint!.marker.markerId);
+                        },
+                        child: Text(
+                          "Next: Checkpoint ${nextCheckpoint!.chekpointNumber}",
+                          style: const TextStyle(color: Colors.pink),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

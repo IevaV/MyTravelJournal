@@ -13,6 +13,7 @@ class Trip extends ChangeNotifier {
     required this.endDate,
     required this.createdAt,
     this.days = const [],
+    this.isOngoing = false,
   });
 
   String tripId;
@@ -22,6 +23,7 @@ class Trip extends ChangeNotifier {
   DateTime endDate;
   List<TripDay> days;
   DateTime createdAt;
+  bool isOngoing;
 
   static Future<Trip> createTrip(String id, Map<String, dynamic>? data) async {
     final tripService = getIt<TripService>();
@@ -37,6 +39,7 @@ class Trip extends ChangeNotifier {
           ? data!["createdAt"].toDate()
           : DateTime.now(),
       days: tripDays,
+      isOngoing: data!["isOngoing"] ?? false,
     );
   }
 
