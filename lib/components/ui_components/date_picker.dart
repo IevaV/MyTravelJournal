@@ -36,8 +36,13 @@ class DatePicker extends StatelessWidget {
         _selectTripDates(context);
       },
       decoration: InputDecoration(
-        labelText: 'Start Date - End Date',
-        border: const OutlineInputBorder(),
+        suffixIcon: const Icon(Icons.calendar_month),
+        filled: true,
+        fillColor: Colors.white54,
+        hintText: 'Start Date - End Date',
+        border: OutlineInputBorder(
+            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.circular(40.0)),
         errorText: validateSelectedDates ? textFieldErrorMessage : null,
       ),
     );

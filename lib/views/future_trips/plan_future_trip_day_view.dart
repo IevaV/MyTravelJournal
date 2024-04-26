@@ -467,7 +467,11 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                 flex: 3,
                 child: Column(
                   children: [
-                    Text("Checkpoint ${checkpointToUpdate.chekpointNumber}"),
+                    Text(
+                      "Checkpoint ${checkpointToUpdate.chekpointNumber}",
+                      style:
+                          TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+                    ),
                     TextField(
                       controller: _checkpointTitle,
                       decoration: const InputDecoration(
@@ -622,13 +626,18 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Day ${widget.tripDay.dayNumber}'),
+        title: Text(
+          'Day ${widget.tripDay.dayNumber}',
+          style: const TextStyle(color: Colors.white, fontSize: 30),
+        ),
+        backgroundColor: const Color.fromARGB(255, 119, 102, 203),
         centerTitle: true,
         leading: BackButton(
           onPressed: () {
             ScaffoldMessenger.of(context).clearSnackBars();
             context.pop();
           },
+          color: Colors.white,
         ),
       ),
       body: SafeArea(
@@ -643,6 +652,8 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                     return SizedBox(
                       height: constraints.maxHeight / 1.12,
                       child: GoogleMap(
+                        myLocationButtonEnabled: false,
+                        compassEnabled: false,
                         mapType: MapType.hybrid,
                         onMapCreated: (GoogleMapController controller) {
                           _onMapCreated(controller);
@@ -658,65 +669,71 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                       ),
                     );
                   }),
-                  SearchAnchor(
-                    viewOnChanged: (value) async {
-                      http.Response response = await googleMapsService
-                          .fetchPlacesAutocompleteResults(value);
-                      final autoCompleteData =
-                          jsonDecode(response.body) as Map<String, dynamic>;
-                      setState(() {
-                        autoCompleteSuggestions =
-                            autoCompleteData["suggestions"];
-                      });
-                    },
-                    viewLeading: BackButton(
-                      onPressed: () {
-                        context.pop();
-                        FocusScope.of(context).requestFocus(FocusNode());
+                  Padding(
+                    padding: const EdgeInsets.all(15.0),
+                    child: SearchAnchor(
+                      viewOnChanged: (value) async {
+                        http.Response response = await googleMapsService
+                            .fetchPlacesAutocompleteResults(value);
+                        final autoCompleteData =
+                            jsonDecode(response.body) as Map<String, dynamic>;
+                        setState(() {
+                          autoCompleteSuggestions =
+                              autoCompleteData["suggestions"];
+                        });
+                      },
+                      viewLeading: BackButton(
+                        onPressed: () {
+                          context.pop();
+                          FocusScope.of(context).requestFocus(FocusNode());
+                        },
+                      ),
+                      builder: (BuildContext context, searchController) {
+                        return SearchBar(
+                          hintText: 'Search location',
+                          controller: searchController,
+                          // padding: const MaterialStatePropertyAll<EdgeInsets>(
+                          //     EdgeInsets.symmetric(horizontal: 16.0)),
+                          onTap: () {
+                            searchController.openView();
+                          },
+                          leading: const Icon(Icons.search),
+                          backgroundColor: MaterialStateColor.resolveWith(
+                              (states) => const Color(0xe6FFFFFF)),
+                        );
+                      },
+                      suggestionsBuilder: (BuildContext context,
+                          SearchController controller) async {
+                        return List<ListTile>.generate(
+                          autoCompleteSuggestions.length,
+                          (int index) {
+                            final String item =
+                                '${autoCompleteSuggestions[index]["placePrediction"]["text"]["text"]}';
+                            return ListTile(
+                              title: Text(item),
+                              onTap: () async {
+                                http.Response response = await googleMapsService
+                                    .fetchPlaceLocationData(
+                                        autoCompleteSuggestions[index]
+                                            ["placePrediction"]["placeId"]);
+                                final locationData = jsonDecode(response.body)
+                                    as Map<String, dynamic>;
+                                addMarker(LatLng(
+                                    locationData["location"]["latitude"],
+                                    locationData["location"]["longitude"]));
+                                setState(() async {
+                                  controller.closeView(item);
+                                  FocusScope.of(context).unfocus();
+                                  await animateGoogleMapsCamera(
+                                      locationData["location"]["latitude"],
+                                      locationData["location"]["longitude"]);
+                                });
+                              },
+                            );
+                          },
+                        );
                       },
                     ),
-                    builder: (BuildContext context, searchController) {
-                      return SearchBar(
-                        controller: searchController,
-                        // padding: const MaterialStatePropertyAll<EdgeInsets>(
-                        //     EdgeInsets.symmetric(horizontal: 16.0)),
-                        onTap: () {
-                          searchController.openView();
-                        },
-                        leading: const Icon(Icons.search),
-                      );
-                    },
-                    suggestionsBuilder: (BuildContext context,
-                        SearchController controller) async {
-                      return List<ListTile>.generate(
-                        autoCompleteSuggestions.length,
-                        (int index) {
-                          final String item =
-                              '${autoCompleteSuggestions[index]["placePrediction"]["text"]["text"]}';
-                          return ListTile(
-                            title: Text(item),
-                            onTap: () async {
-                              http.Response response = await googleMapsService
-                                  .fetchPlaceLocationData(
-                                      autoCompleteSuggestions[index]
-                                          ["placePrediction"]["placeId"]);
-                              final locationData = jsonDecode(response.body)
-                                  as Map<String, dynamic>;
-                              addMarker(LatLng(
-                                  locationData["location"]["latitude"],
-                                  locationData["location"]["longitude"]));
-                              setState(() async {
-                                controller.closeView(item);
-                                FocusScope.of(context).unfocus();
-                                await animateGoogleMapsCamera(
-                                    locationData["location"]["latitude"],
-                                    locationData["location"]["longitude"]);
-                              });
-                            },
-                          );
-                        },
-                      );
-                    },
                   ),
                   Positioned.fill(
                     child: Align(
@@ -737,14 +754,21 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                   DraggableScrollableSheet(
                     snap: true,
                     maxChildSize: 0.5,
-                    initialChildSize: 0.10,
-                    minChildSize: 0.10,
+                    initialChildSize: 0.11,
+                    minChildSize: 0.11,
                     builder: (BuildContext context,
                         ScrollController scrollController) {
                       return Container(
                         clipBehavior: Clip.hardEdge,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).canvasColor,
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color.fromRGBO(125, 119, 255, 0.984),
+                              Color.fromRGBO(255, 232, 173, 0.984),
+                            ],
+                          ),
                         ),
                         child: ListView.separated(
                           controller: scrollController,
@@ -870,7 +894,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                   const EdgeInsets.symmetric(horizontal: 6.0),
                               decoration: const BoxDecoration(
                                 shape: BoxShape.rectangle,
-                                color: Colors.amber,
+                                color: Colors.white70,
                                 borderRadius: BorderRadius.all(
                                   Radius.circular(12.0),
                                 ),
@@ -878,6 +902,10 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                               child: ListTile(
                                 title: Text(
                                   "Checkpoint ${checkpoint.chekpointNumber}",
+                                  style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xff454579)),
                                 ),
                                 subtitle: Text(checkpoint.title != null
                                     ? checkpoint.title!
