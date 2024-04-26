@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../constants/color_constants.dart';
 import '../services/auth/auth_service.dart';
 
 class MyProfileView extends StatefulWidget {
@@ -24,7 +23,7 @@ class _MyProfileViewState extends State<MyProfileView> {
             const Size(250, 50),
           ),
           backgroundColor: MaterialStateColor.resolveWith(
-              (states) => ColorConstants.primaryRed),
+              (states) => const Color.fromRGBO(119, 102, 203, 1)),
           shape: MaterialStateProperty.all(
             RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(30),
@@ -35,10 +34,7 @@ class _MyProfileViewState extends State<MyProfileView> {
         child: const Text(
           'LOG OUT',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-            color: ColorConstants.assetColorWhite,
-          ),
+              fontWeight: FontWeight.bold, fontSize: 24, color: Colors.white),
         ),
       ),
     );

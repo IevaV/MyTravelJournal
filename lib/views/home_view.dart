@@ -101,16 +101,26 @@ class HomeView extends StatelessWidget with WatchItMixin {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Padding(
-                  padding: EdgeInsets.only(left: 8.0, top: 8.0),
+                  padding: EdgeInsets.only(left: 8.0, top: 10.0, bottom: 10.0),
                   child: Text(
                     "Closest trip",
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 30,
                       fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black26,
+                          blurRadius: 10.0,
+                          offset: Offset(0.0, 3.0),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 Card(
+                  elevation: 0,
+                  color: Colors.white70,
                   clipBehavior: Clip.hardEdge,
                   child: InkWell(
                     splashColor: Colors.blue.withAlpha(50),
@@ -119,9 +129,24 @@ class HomeView extends StatelessWidget with WatchItMixin {
                     child: Column(
                       children: [
                         ListTile(
-                          title: Text(closestTrip.title),
-                          subtitle: Text(
-                              "${DateFormat('dd/MM/yyyy').format(closestTrip.startDate)} - ${DateFormat('dd/MM/yyyy').format(closestTrip.endDate)}"),
+                          title: Center(
+                            child: Text(
+                              closestTrip.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 25,
+                                color: Color(0xff454579),
+                              ),
+                            ),
+                          ),
+                          subtitle: Center(
+                            child: Text(
+                              "${DateFormat('dd/MM/yyyy').format(closestTrip.startDate)} - ${DateFormat('dd/MM/yyyy').format(closestTrip.endDate)}",
+                              style: const TextStyle(
+                                color: Color(0xff454579),
+                              ),
+                            ),
+                          ),
                           enableFeedback: false,
                         ),
                         Row(
@@ -129,9 +154,21 @@ class HomeView extends StatelessWidget with WatchItMixin {
                           children: [
                             Padding(
                               padding: const EdgeInsets.only(
-                                  bottom: 8.0, right: 10.0),
-                              child: Text(
-                                  "Days left: ${daysBetween(closestTrip.startDate, DateTime.now())}"),
+                                  bottom: 10.0, right: 10.0),
+                              child: Container(
+                                padding: const EdgeInsets.all(10.0),
+                                decoration: BoxDecoration(
+                                    shape: BoxShape.rectangle,
+                                    color:
+                                        const Color.fromRGBO(125, 119, 255, 1),
+                                    borderRadius: BorderRadius.circular(50)),
+                                child: Text(
+                                  "Days left: ${daysBetween(closestTrip.startDate, DateTime.now())}",
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              ),
                             ),
                           ],
                         )
@@ -159,10 +196,21 @@ class HomeView extends StatelessWidget with WatchItMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Center(
-          child: homeViewState(context),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color.fromRGBO(125, 119, 255, 0.984),
+              Color.fromRGBO(255, 232, 173, 0.984),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: homeViewState(context),
+          ),
         ),
       ),
     );

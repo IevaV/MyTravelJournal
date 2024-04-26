@@ -47,124 +47,198 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
     TripService tripService = getIt<TripService>();
     User user = getIt<User>();
     return Scaffold(
-      backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        title: const Text('Create New Trip'),
+        backgroundColor: Color.fromRGBO(119, 102, 203, 1),
+        title: const Text(
+          'Create New Trip',
+          style: TextStyle(color: Colors.white, fontSize: 30),
+        ),
         centerTitle: true,
       ),
-      body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10.0),
-                child: TextField(
-                  controller: _title,
-                  maxLength: 30,
-                  decoration: InputDecoration(
-                    labelText: 'Title',
-                    border: const OutlineInputBorder(),
-                    errorText:
-                        _validateTitleInput ? "Title can't be empty" : null,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(10.0),
-                child: TextField(
-                  controller: _description,
-                  maxLength: 100,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: 'Description',
-                    border: const OutlineInputBorder(),
-                    errorText: _validateDescriptionInput
-                        ? "Description can't be empty"
-                        : null,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(10.0),
-                child: DatePicker(
-                  textController: _date,
-                  pickedDates: selectedDates,
-                  validateSelectedDates: _validateDateInput,
-                  textFieldErrorMessage: tripDateErrorMessage,
-                ),
-              ),
-              FilledButton(
-                  onPressed: () {
-                    GoRouter.of(context).pop();
-                  },
-                  child: const Text('Cancel')),
-              FilledButton(
-                child: const Text('Next'),
-                onPressed: () async {
-                  Trip? trip;
-                  if (selectedDates['dates'] != null) {
-                    trip = user.userTrips.firstWhereOrNull(
-                      (userTrip) {
-                        List<DateTime> datesBetweenSelect = datesBetween(
-                            selectedDates['dates']!.start,
-                            selectedDates['dates']!.end);
-                        List<DateTime> datesBetweenExisting =
-                            datesBetween(userTrip.startDate, userTrip.endDate);
-                        return (datesBetweenSelect
-                                    .contains(userTrip.startDate) ||
-                                datesBetweenSelect
-                                    .contains(userTrip.endDate)) ||
-                            (datesBetweenExisting
-                                    .contains(selectedDates['dates']!.start) ||
-                                datesBetweenExisting
-                                    .contains(selectedDates['dates']!.end));
-                      },
-                    );
-                  }
-
-                  setState(() {
-                    _validateTitleInput = _title.text.isEmpty;
-                    _validateDescriptionInput = _description.text.isEmpty;
-                    if (selectedDates['dates'] == null) {
-                      tripDateErrorMessage =
-                          "Please select Trip start and end dates";
-                    } else if (trip != null) {
-                      tripDateErrorMessage =
-                          "Selected dates are overlapping with existing Trip: ${trip.title}";
-                    }
-                    _validateDateInput =
-                        selectedDates['dates'] == null || trip != null;
-                  });
-
-                  if (!_validateTitleInput &&
-                      !_validateDescriptionInput &&
-                      !_validateDateInput) {
-                    try {
-                      await tripService.batchUpdateAfterAddingNewTrip(
-                        user.uid,
-                        _title.text,
-                        _description.text,
-                        selectedDates['dates']!.start,
-                        selectedDates['dates']!.end,
-                      );
-                      Trip trip = await tripService.getLatestUserTrip(user.uid);
-                      user.addTrip(trip);
-                      context.push('/plan-future-trip', extra: trip);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('New trip added'),
-                        ),
-                      );
-                    } catch (e) {
-                      print(e);
-                      await showErrorDialog(context,
-                          'Something went wrong, please try again later');
-                    }
-                  }
-                },
-              ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color.fromRGBO(125, 119, 255, 0.984),
+              Color.fromRGBO(255, 232, 173, 0.984),
             ],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  flex: 4,
+                  child: Column(
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Text(
+                          'Where you will be traveling to?',
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xff454579)),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(10.0),
+                        child: TextField(
+                          controller: _title,
+                          maxLength: 30,
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Colors.white54,
+                            hintText: 'Trip title',
+                            border: OutlineInputBorder(
+                                borderSide: BorderSide.none,
+                                borderRadius: BorderRadius.circular(40.0)),
+                            errorText: _validateTitleInput
+                                ? "Title can't be empty"
+                                : null,
+                          ),
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Text(
+                          'Write short description about your upcoming adventures!',
+                          textAlign: TextAlign.end,
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(10.0),
+                        child: TextField(
+                          controller: _description,
+                          maxLength: 100,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Colors.white54,
+                            hintText: 'Description',
+                            border: OutlineInputBorder(
+                                borderSide: BorderSide.none,
+                                borderRadius: BorderRadius.circular(20.0)),
+                            errorText: _validateDescriptionInput
+                                ? "Description can't be empty"
+                                : null,
+                          ),
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Text(
+                          'When your adventure will start?',
+                          textAlign: TextAlign.end,
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xff454579)),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(10.0),
+                        child: DatePicker(
+                          textController: _date,
+                          pickedDates: selectedDates,
+                          validateSelectedDates: _validateDateInput,
+                          textFieldErrorMessage: tripDateErrorMessage,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      FilledButton(
+                          onPressed: () {
+                            GoRouter.of(context).pop();
+                          },
+                          child: const Text('Cancel')),
+                      FilledButton(
+                        child: const Text('Next'),
+                        onPressed: () async {
+                          Trip? trip;
+                          if (selectedDates['dates'] != null) {
+                            trip = user.userTrips.firstWhereOrNull(
+                              (userTrip) {
+                                List<DateTime> datesBetweenSelect =
+                                    datesBetween(selectedDates['dates']!.start,
+                                        selectedDates['dates']!.end);
+                                List<DateTime> datesBetweenExisting =
+                                    datesBetween(
+                                        userTrip.startDate, userTrip.endDate);
+                                return (datesBetweenSelect
+                                            .contains(userTrip.startDate) ||
+                                        datesBetweenSelect
+                                            .contains(userTrip.endDate)) ||
+                                    (datesBetweenExisting.contains(
+                                            selectedDates['dates']!.start) ||
+                                        datesBetweenExisting.contains(
+                                            selectedDates['dates']!.end));
+                              },
+                            );
+                          }
+
+                          setState(() {
+                            _validateTitleInput = _title.text.isEmpty;
+                            _validateDescriptionInput =
+                                _description.text.isEmpty;
+                            if (selectedDates['dates'] == null) {
+                              tripDateErrorMessage =
+                                  "Please select Trip start and end dates";
+                            } else if (trip != null) {
+                              tripDateErrorMessage =
+                                  "Selected dates are overlapping with existing Trip: ${trip.title}";
+                            }
+                            _validateDateInput =
+                                selectedDates['dates'] == null || trip != null;
+                          });
+
+                          if (!_validateTitleInput &&
+                              !_validateDescriptionInput &&
+                              !_validateDateInput) {
+                            try {
+                              await tripService.batchUpdateAfterAddingNewTrip(
+                                user.uid,
+                                _title.text,
+                                _description.text,
+                                selectedDates['dates']!.start,
+                                selectedDates['dates']!.end,
+                              );
+                              Trip trip =
+                                  await tripService.getLatestUserTrip(user.uid);
+                              user.addTrip(trip);
+                              context.push('/plan-future-trip', extra: trip);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('New trip added'),
+                                ),
+                              );
+                            } catch (e) {
+                              print(e);
+                              await showErrorDialog(context,
+                                  'Something went wrong, please try again later');
+                            }
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
