@@ -75,12 +75,22 @@ class HomeView extends StatelessWidget with WatchItMixin {
                   child: Text(
                     "Ongoing trip",
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 30,
                       fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black26,
+                          blurRadius: 10.0,
+                          offset: Offset(0.0, 3.0),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 Card(
+                  elevation: 0,
+                  color: Colors.white70,
                   clipBehavior: Clip.hardEdge,
                   child: InkWell(
                     splashColor: Colors.blue.withAlpha(50),
@@ -89,9 +99,24 @@ class HomeView extends StatelessWidget with WatchItMixin {
                     child: Column(
                       children: [
                         ListTile(
-                          title: Text(user.ongoingTrip!.title),
-                          subtitle: Text(
-                              "${DateFormat('dd/MM/yyyy').format(user.ongoingTrip!.startDate)} - ${DateFormat('dd/MM/yyyy').format(user.ongoingTrip!.endDate)}"),
+                          title: Center(
+                            child: Text(
+                              user.ongoingTrip!.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 25,
+                                color: Color(0xff454579),
+                              ),
+                            ),
+                          ),
+                          subtitle: Center(
+                            child: Text(
+                              "${DateFormat('dd/MM/yyyy').format(user.ongoingTrip!.startDate)} - ${DateFormat('dd/MM/yyyy').format(user.ongoingTrip!.endDate)}",
+                              style: const TextStyle(
+                                color: Color(0xff454579),
+                              ),
+                            ),
+                          ),
                           enableFeedback: false,
                         ),
                         Row(
@@ -100,8 +125,21 @@ class HomeView extends StatelessWidget with WatchItMixin {
                             Padding(
                               padding: const EdgeInsets.only(
                                   bottom: 8.0, right: 10.0),
-                              child: Text(
-                                  "Day: ${daysBetween(DateTime.now(), user.ongoingTrip!.startDate) + 1}"),
+                              child: Container(
+                                padding: const EdgeInsets.all(10.0),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.rectangle,
+                                  color: const Color.fromRGBO(125, 119, 255, 1),
+                                  borderRadius: BorderRadius.circular(50),
+                                ),
+                                child: Text(
+                                  "Day: ${daysBetween(DateTime.now(), user.ongoingTrip!.startDate) + 1}",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                             ),
                           ],
                         )

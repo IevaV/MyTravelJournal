@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
 import 'package:mytraveljournal/locator.dart';
@@ -96,8 +97,19 @@ class _OngoingTripViewState extends State<OngoingTripView> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(widget.trip.title),
+        title: Text(
+          widget.trip.title,
+          style: const TextStyle(color: Colors.white, fontSize: 30),
+        ),
         centerTitle: true,
+        backgroundColor: const Color.fromARGB(255, 119, 102, 203),
+        leading: BackButton(
+          onPressed: () {
+            ScaffoldMessenger.of(context).clearSnackBars();
+            context.pop();
+          },
+          color: Colors.white,
+        ),
       ),
       body: SafeArea(
         child: Column(
@@ -142,12 +154,12 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                               shape: BoxShape.circle,
                               color: selectedTripDay.dayId ==
                                       widget.trip.days[index].dayId
-                                  ? Colors.deepPurple.withAlpha(200)
+                                  ? Color(0xbf7766CB)
                                   : Colors.white70,
                               border: todaysTripDay.dayId ==
                                       widget.trip.days[index].dayId
                                   ? Border.all(
-                                      color: Colors.purpleAccent, width: 2.0)
+                                      color: Color(0xffFFC212), width: 3.0)
                                   : null,
                             ),
                             child: Center(
@@ -164,8 +176,11 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                       style: selectedTripDay.dayId ==
                                               widget.trip.days[index].dayId
                                           ? const TextStyle(
-                                              color: Colors.white70)
-                                          : null,
+                                              color: Colors.white70,
+                                              fontWeight: FontWeight.bold)
+                                          : const TextStyle(
+                                              color: Color(0xff454579),
+                                              fontWeight: FontWeight.bold),
                                     ),
                                     Text(
                                         widget.trip.days[index].dayNumber
@@ -173,8 +188,11 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                         style: selectedTripDay.dayId ==
                                                 widget.trip.days[index].dayId
                                             ? const TextStyle(
-                                                color: Colors.white70)
-                                            : null),
+                                                color: Colors.white70,
+                                                fontWeight: FontWeight.bold)
+                                            : const TextStyle(
+                                                color: Color(0xff454579),
+                                                fontWeight: FontWeight.bold)),
                                   ],
                                 ),
                               ),
@@ -204,14 +222,21 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                   DraggableScrollableSheet(
                     snap: true,
                     maxChildSize: 0.5,
-                    initialChildSize: 0.10,
-                    minChildSize: 0.10,
+                    initialChildSize: 0.11,
+                    minChildSize: 0.11,
                     builder: (BuildContext context,
                         ScrollController scrollController) {
                       return Container(
                         clipBehavior: Clip.hardEdge,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).canvasColor,
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color.fromRGBO(125, 119, 255, 0.984),
+                              Color.fromRGBO(255, 232, 173, 0.984),
+                            ],
+                          ),
                         ),
                         child: ListView.separated(
                           controller: scrollController,
@@ -230,26 +255,27 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                               right: 10.0, top: 10.0),
                                           height: 38,
                                           child: ElevatedButton.icon(
-                                              label: Text(
-                                                selectedTripDay
-                                                            .checkpoints[
-                                                                index - 1]
-                                                            .departureTime ==
-                                                        null
-                                                    ? "Select departure time"
-                                                    : "Leaving at ${(selectedTripDay.checkpoints[index - 1].departureTime!.hour).toString().padLeft(2, '0')}:${(selectedTripDay.checkpoints[index - 1].departureTime!.minute).toString().padLeft(2, '0')}",
-                                                style: const TextStyle(
-                                                    color: Colors.white),
-                                              ),
-                                              icon: const Icon(
-                                                Icons.access_time,
-                                                color: Colors.white,
-                                              ),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor:
-                                                    const Color(0xff7D77FF),
-                                              ),
-                                              onPressed: () {}),
+                                            label: Text(
+                                              selectedTripDay
+                                                          .checkpoints[
+                                                              index - 1]
+                                                          .departureTime ==
+                                                      null
+                                                  ? "Select departure time"
+                                                  : "Leaving at ${(selectedTripDay.checkpoints[index - 1].departureTime!.hour).toString().padLeft(2, '0')}:${(selectedTripDay.checkpoints[index - 1].departureTime!.minute).toString().padLeft(2, '0')}",
+                                              style: const TextStyle(
+                                                  color: Colors.white),
+                                            ),
+                                            icon: const Icon(
+                                              Icons.access_time,
+                                              color: Colors.white,
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  const Color(0xff7D77FF),
+                                            ),
+                                            onPressed: () {},
+                                          ),
                                         )
                                       ],
                                     ),
@@ -263,41 +289,36 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                       ],
                                     ),
                                     Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.start,
-                                      children: [
-                                        Container(
-                                          margin:
-                                              const EdgeInsets.only(left: 10.0),
-                                          height: 38,
-                                          child: ElevatedButton.icon(
-                                            label: Text(
-                                              selectedTripDay.checkpoints[index]
-                                                          .arrivalTime ==
-                                                      null
-                                                  ? "Provide departure time"
-                                                  : "Arriving at ${(selectedTripDay.checkpoints[index].arrivalTime!.hour).toString().padLeft(2, '0')}:${(selectedTripDay.checkpoints[index].arrivalTime!.minute).toString().padLeft(2, '0')}",
-                                              style: const TextStyle(
-                                                  color: Colors.white),
-                                            ),
-                                            icon: const Icon(
-                                              Icons.access_time,
-                                              color: Colors.white,
-                                            ),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  const Color(0xff7D77FF),
-                                            ),
-                                            onPressed: selectedTripDay
-                                                        .checkpoints[index]
-                                                        .arrivalTime ==
-                                                    null
-                                                ? null
-                                                : () async {},
-                                          ),
-                                        )
-                                      ],
-                                    ),
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                              margin: const EdgeInsets.only(
+                                                  left: 10.0),
+                                              height: 38,
+                                              child: ElevatedButton.icon(
+                                                label: Text(
+                                                  selectedTripDay
+                                                              .checkpoints[
+                                                                  index]
+                                                              .arrivalTime ==
+                                                          null
+                                                      ? "Provide departure time"
+                                                      : "Arriving at ${(selectedTripDay.checkpoints[index].arrivalTime!.hour).toString().padLeft(2, '0')}:${(selectedTripDay.checkpoints[index].arrivalTime!.minute).toString().padLeft(2, '0')}",
+                                                  style: const TextStyle(
+                                                      color: Colors.white),
+                                                ),
+                                                icon: const Icon(
+                                                  Icons.access_time,
+                                                  color: Colors.white,
+                                                ),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      const Color(0xff7D77FF),
+                                                ),
+                                                onPressed: () {},
+                                              ))
+                                        ]),
                                   ],
                                 ),
                               );
@@ -329,7 +350,7 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                   const EdgeInsets.symmetric(horizontal: 6.0),
                               decoration: const BoxDecoration(
                                 shape: BoxShape.rectangle,
-                                color: Colors.amber,
+                                color: Colors.white70,
                                 borderRadius: BorderRadius.all(
                                   Radius.circular(12.0),
                                 ),
@@ -337,6 +358,10 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                               child: ListTile(
                                 title: Text(
                                   "Checkpoint ${checkpoint.chekpointNumber}",
+                                  style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xff454579)),
                                 ),
                                 subtitle: Text(checkpoint.title != null
                                     ? checkpoint.title!
@@ -358,10 +383,10 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                   Positioned(
                     top: 90,
                     child: Container(
-                      height: 35,
+                      height: 40,
                       decoration: const BoxDecoration(
                           shape: BoxShape.rectangle,
-                          color: Colors.amber,
+                          color: Color(0xffFFC212),
                           borderRadius: BorderRadius.only(
                               topRight: Radius.circular(12.0),
                               bottomRight: Radius.circular(12.0))),
@@ -375,7 +400,9 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                         },
                         child: Text(
                           "Next: Checkpoint ${nextCheckpoint!.chekpointNumber}",
-                          style: const TextStyle(color: Colors.pink),
+                          style: const TextStyle(
+                              color: Color(0xff46467A),
+                              fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),

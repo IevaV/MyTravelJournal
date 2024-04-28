@@ -560,7 +560,6 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
         destination.arrivalTime = arrivalTime;
         setState(() {});
       } catch (e) {
-        print(e);
         await showErrorDialog(
             context, 'Something went wrong, please try again later');
       }
