@@ -469,4 +469,60 @@ class TripService {
         .doc(checkpointId)
         .update(data);
   }
+
+  Future<void> updateCheckpointExpenses(String uid, String tripId, String dayId,
+      String checkpointId, List<Map<String, dynamic>> data) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc(checkpointId)
+        .update({"expenses": FieldValue.arrayUnion(data)});
+  }
+
+  Future<void> deleteCheckpointExpense(String uid, String tripId, String dayId,
+      String checkpointId, List<Map<String, dynamic>> data) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc(checkpointId)
+        .update({"expenses": FieldValue.arrayRemove(data)});
+  }
+
+  Future<void> updateCheckpointFileNames(String uid, String tripId, String dayId,
+      String checkpointId, String fileName) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc(checkpointId)
+        .update({"fileNames": FieldValue.arrayUnion([fileName])});
+  }
+
+  Future<void> deleteCheckpointFileName(String uid, String tripId, String dayId,
+      String checkpointId, String fileName) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc(checkpointId)
+        .update({"fileNames": FieldValue.arrayRemove([fileName])});
+  }
 }

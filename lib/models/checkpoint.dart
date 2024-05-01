@@ -9,6 +9,8 @@ class Checkpoint {
     required this.address,
     required this.coordinates,
     required this.marker,
+    required this.expenses,
+    required this.fileNames,
     this.checkpointId,
     this.title,
     this.polyline,
@@ -16,6 +18,7 @@ class Checkpoint {
     this.departureTime,
     this.arrivalTime,
     this.polylineDuration,
+    this.notes = "",
   });
 
   int chekpointNumber;
@@ -23,13 +26,15 @@ class Checkpoint {
   String? title;
   String address;
   String? polylineDuration;
+  String notes;
   LatLng coordinates;
   TimeOfDay? arrivalTime;
   TimeOfDay? departureTime;
   Marker marker;
   Polyline? polyline;
   bool isVisited;
-  // List<LatLng>? polylineCoordinates;
+  List<Map<String, dynamic>> expenses;
+  List<String> fileNames;
 
   factory Checkpoint.fromFirestore(QueryDocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -55,7 +60,8 @@ class Checkpoint {
           points: polylineCoordinates,
           color: Colors.blue.withOpacity(0.75));
     }
-
+    print(
+        "${data["expenses"]} and this is Checkpoint ${data["checkpointNumber"]} ");
     return Checkpoint(
       chekpointNumber: data["checkpointNumber"],
       address: data["address"],
@@ -76,6 +82,15 @@ class Checkpoint {
               minute: data["arrivalTime"]["minute"])
           : null,
       polylineDuration: data["polylineDuration"],
+      expenses: data["expenses"] == null
+          ? []
+          : (data["expenses"] as List)
+              .map((e) => e as Map<String, dynamic>)
+              .toList(),
+      fileNames: data["fileNames"] == null
+          ? []
+          : List<String>.from(data["fileNames"] as List),
+      notes: data["notes"] ?? "",
     );
   }
 }
