@@ -1,5 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -10,12 +13,16 @@ import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
 import 'package:mytraveljournal/models/user.dart';
+import 'package:mytraveljournal/services/firebase_storage/firebase_storage_service.dart';
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 import 'package:mytraveljournal/services/google_maps/google_maps_service.dart';
 import 'package:mytraveljournal/services/location/location_service.dart';
 import 'package:http/http.dart' as http;
+import 'package:open_file_plus/open_file_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:watch_it/watch_it.dart';
+import 'dart:developer' as devtools show log;
 
 class PlanFutureTripDayView extends StatefulWidget
     with WatchItStatefulWidgetMixin {
@@ -41,15 +48,26 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
   List<dynamic> autoCompleteSuggestions = [];
   List<Marker> markers = [];
   List<Polyline> polylines = [];
+  List<Map<String, dynamic>> expenses = [];
+  List<File> files = [];
   Marker? tempMarker;
   TripService tripService = getIt<TripService>();
+  FirebaseStorageService firebaseStorageService =
+      getIt<FirebaseStorageService>();
   User user = getIt<User>();
   late final TextEditingController _checkpointTitle;
   late final TextEditingController _departureTime;
+  late final TextEditingController _expensesTitle;
+  late final TextEditingController _expensesAmount;
+  late final TextEditingController _notes;
   PolylinePoints polylinePoints = PolylinePoints();
   String checkpointPositionOption = "Add at end";
   bool selectCheckpointEnabled = false;
   int checkpointPosition = 1;
+  final GlobalKey<ScaffoldState> _scaffoldkey = GlobalKey<ScaffoldState>();
+  double totalExpenses = 0;
+  String? expenseTitleErrorMessage;
+  String? expenseAmountErrorMessage;
 
   @override
   void initState() {
@@ -57,6 +75,9 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     searchController = SearchController();
     _checkpointTitle = TextEditingController();
     _departureTime = TextEditingController();
+    _expensesTitle = TextEditingController();
+    _expensesAmount = TextEditingController();
+    _notes = TextEditingController();
     super.initState();
   }
 
@@ -65,6 +86,9 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     searchController.dispose();
     _checkpointTitle.dispose();
     _departureTime.dispose();
+    _expensesTitle.dispose();
+    _expensesAmount.dispose();
+    _notes.dispose();
     super.dispose();
   }
 
@@ -162,6 +186,8 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                 ["formatted_address"],
                             coordinates: latLng,
                             marker: marker,
+                            expenses: [],
+                            fileNames: [],
                           );
 
                           try {
@@ -314,6 +340,8 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
       address: addressData["results"][0]["formatted_address"],
       coordinates: latLng,
       marker: marker,
+      expenses: [],
+      fileNames: [],
     );
     for (var i = tripDaysCheckpointsModified.length;
         i > checkpointPosition - 1;
@@ -455,72 +483,654 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
 
   Future<void> updateCheckpoint(
       Checkpoint checkpointToUpdate, List<Checkpoint> checkpoints) async {
-    _checkpointTitle.text = checkpointToUpdate.title ?? "";
+    totalExpenses = checkpointToUpdate.expenses
+        .map((e) => e.values.first)
+        .toList()
+        .reduce((a, b) => a + b);
+    files = [];
+    final appDocDir = await getApplicationDocumentsDirectory();
+    devtools.log(checkpointToUpdate.fileNames.length.toString());
+    devtools.log(appDocDir.toString());
+    for (var filename in checkpointToUpdate.fileNames) {
+      String pathToFile = "${appDocDir.path}/${widget.tripId}/$filename";
+      devtools.log("File doesn't exist");
+      await firebaseStorageService.downloadFile(
+          user.uid, widget.tripId, filename);
+      // await File(pathToFile).create(recursive: true);
+      files.add(File(pathToFile));
+    }
     showDialog(
       context: context,
       builder: ((context) {
-        return Dialog.fullscreen(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                flex: 3,
-                child: Column(
-                  children: [
-                    Text(
-                      "Checkpoint ${checkpointToUpdate.chekpointNumber}",
-                      style:
-                          TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
-                    ),
-                    TextField(
-                      controller: _checkpointTitle,
-                      decoration: const InputDecoration(
-                        labelText: "Checkpoint title",
+        return StatefulBuilder(builder: (context, setState) {
+          _checkpointTitle.text = checkpointToUpdate.title ?? "";
+          _notes.text = checkpointToUpdate.notes;
+          expenses = checkpointToUpdate.expenses;
+          return Dialog.fullscreen(
+            child: Scaffold(
+              key: _scaffoldkey,
+              body: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color.fromRGBO(125, 119, 255, 0.984),
+                      Color.fromRGBO(255, 232, 173, 0.984),
+                    ],
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  child: ListBody(
+                    // mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Column(
+                        children: [
+                          Text(
+                            "Checkpoint ${checkpointToUpdate.chekpointNumber}",
+                            style: const TextStyle(
+                                fontSize: 30,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.white54,
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Flexible(
+                                        flex: 1,
+                                        child: Padding(
+                                          padding: EdgeInsets.only(
+                                              left: 15, top: 8.0, bottom: 4.0),
+                                          child: Icon(
+                                            Icons.location_on_outlined,
+                                            color:
+                                                Color.fromRGBO(69, 69, 121, 1),
+                                          ),
+                                        ),
+                                      ),
+                                      Flexible(
+                                        flex: 5,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                              bottom: 4.0,
+                                              top: 8.0,
+                                              left: 8.0,
+                                              right: 8.0),
+                                          child: Text(
+                                            checkpointToUpdate.address,
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                              color: Color(0xff454579),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  checkpointToUpdate.arrivalTime != null ||
+                                          checkpointToUpdate.departureTime !=
+                                              null
+                                      ? Row(
+                                          children: [
+                                            const Padding(
+                                              padding: EdgeInsets.only(
+                                                  left: 15,
+                                                  top: 8.0,
+                                                  bottom: 8.0),
+                                              child: Icon(
+                                                Icons.access_time,
+                                                color: Color.fromRGBO(
+                                                    69, 69, 121, 1),
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                  bottom: 8.0,
+                                                  top: 4.0,
+                                                  left: 8.0,
+                                                  right: 8.0),
+                                              child: Text(
+                                                "Arriving at ${checkpointToUpdate.arrivalTime!.hour.toString().padLeft(2, '0')}:${checkpointToUpdate.arrivalTime!.minute.toString().padLeft(2, '0')} | Leaving at ${checkpointToUpdate.departureTime!.hour.toString().padLeft(2, '0')}:${checkpointToUpdate.departureTime!.minute.toString().padLeft(2, '0')}",
+                                                style: const TextStyle(
+                                                  fontSize: 18,
+                                                  color: Color(0xff454579),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : const SizedBox(),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: TextField(
+                              controller: _checkpointTitle,
+                              maxLength: 30,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: Colors.white54,
+                                hintText: 'Checkpoint subtitle',
+                                border: OutlineInputBorder(
+                                    borderSide: BorderSide.none,
+                                    borderRadius: BorderRadius.circular(40.0)),
+                              ),
+                            ),
+                          ),
+                          // Expenses
+                          const Row(
+                            children: [
+                              Padding(
+                                padding: EdgeInsets.only(
+                                    left: 15, top: 8.0, bottom: 4.0),
+                                child: Icon(
+                                  Icons.sell_outlined,
+                                  color: Color.fromRGBO(69, 69, 121, 1),
+                                ),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.only(
+                                    bottom: 4.0,
+                                    top: 8.0,
+                                    left: 8.0,
+                                    right: 8.0),
+                                child: Text(
+                                  "Expenses",
+                                  style: TextStyle(
+                                    fontSize: 25,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: TextField(
+                              controller: _expensesTitle,
+                              maxLength: 30,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: Colors.white54,
+                                hintText: 'Title',
+                                errorText: expenseTitleErrorMessage,
+                                border: OutlineInputBorder(
+                                    borderSide: BorderSide.none,
+                                    borderRadius: BorderRadius.circular(40.0)),
+                              ),
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                      left: 8.0, right: 8.0, bottom: 8.0),
+                                  child: TextField(
+                                    controller: _expensesAmount,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.allow(
+                                          RegExp(r'^\d*\.?\d{0,2}')),
+                                    ],
+                                    maxLength: 10,
+                                    decoration: InputDecoration(
+                                      filled: true,
+                                      fillColor: Colors.white54,
+                                      hintText: 'Amount',
+                                      counterText: "",
+                                      errorText: expenseAmountErrorMessage,
+                                      suffix: const Text(
+                                        'EUR',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Color.fromRGBO(69, 69, 121, 1),
+                                        ),
+                                      ),
+                                      border: OutlineInputBorder(
+                                          borderSide: BorderSide.none,
+                                          borderRadius:
+                                              BorderRadius.circular(40.0)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: IconButton(
+                                  onPressed: () async {
+                                    if (_expensesAmount.text == "" ||
+                                        _expensesTitle.text == "") {
+                                      _expensesTitle.text == ""
+                                          ? expenseTitleErrorMessage =
+                                              "Title can't be empty"
+                                          : expenseTitleErrorMessage = null;
+                                      _expensesAmount.text == ""
+                                          ? expenseAmountErrorMessage =
+                                              "Amount can't be empty"
+                                          : expenseAmountErrorMessage = null;
+                                    } else {
+                                      expenseTitleErrorMessage = null;
+                                      expenseAmountErrorMessage = null;
+                                      try {
+                                        List<Map<String, dynamic>> expenseData =
+                                            [
+                                          {
+                                            _expensesTitle.text: double.parse(
+                                                _expensesAmount.text),
+                                          }
+                                        ];
+                                        await tripService
+                                            .updateCheckpointExpenses(
+                                                user.uid,
+                                                widget.tripId,
+                                                widget.tripDay.dayId,
+                                                checkpointToUpdate
+                                                    .checkpointId!,
+                                                expenseData);
+                                        double price =
+                                            double.parse(_expensesAmount.text);
+                                        checkpointToUpdate.expenses
+                                            .add({_expensesTitle.text: price});
+                                        totalExpenses = totalExpenses + price;
+                                        _expensesTitle.clear();
+                                        _expensesAmount.clear();
+                                        if (context.mounted) {
+                                          FocusScope.of(context).unfocus();
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                              content:
+                                                  Text('New expense added'),
+                                            ),
+                                          );
+                                        }
+                                      } catch (e) {
+                                        if (context.mounted) {
+                                          await showErrorDialog(context,
+                                              'Something went wrong, please try again later');
+                                        }
+                                      }
+                                    }
+                                    setState(() {});
+                                  },
+                                  icon: const Icon(
+                                    Icons.add_circle,
+                                    size: 35,
+                                  ),
+                                  color: const Color.fromRGBO(69, 69, 121, 1),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.white54,
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Padding(
+                                        padding: EdgeInsets.all(8.0),
+                                        child: Text(
+                                          "Total",
+                                          style: TextStyle(
+                                            fontSize: 25,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xff454579),
+                                          ),
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(10.0),
+                                          decoration: BoxDecoration(
+                                              shape: BoxShape.rectangle,
+                                              color: const Color(0xbfC94747),
+                                              borderRadius:
+                                                  BorderRadius.circular(50)),
+                                          child: Text(
+                                            "${totalExpenses.toStringAsFixed(2)} EUR",
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  ClipRRect(
+                                    borderRadius: const BorderRadius.only(
+                                        bottomLeft: Radius.circular(20.0),
+                                        bottomRight: Radius.circular(20.0)),
+                                    child: ExpansionTile(
+                                      title: const Text(
+                                        'View expenses',
+                                        style: TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      collapsedTextColor: Colors.white,
+                                      collapsedIconColor: Colors.white,
+                                      collapsedBackgroundColor:
+                                          const Color(0xff454579),
+                                      collapsedShape:
+                                          const Border(bottom: BorderSide()),
+                                      children: expenses
+                                          .map(
+                                            (expense) => ListTile(
+                                              leading: Text(expense.keys.first),
+                                              title: Center(
+                                                child: Text(expense.values.first
+                                                    .toStringAsFixed(2)),
+                                              ),
+                                              trailing: IconButton(
+                                                icon: const Icon(Icons.delete),
+                                                onPressed: () async {
+                                                  try {
+                                                    await tripService
+                                                        .deleteCheckpointExpense(
+                                                            user.uid,
+                                                            widget.tripId,
+                                                            widget
+                                                                .tripDay.dayId,
+                                                            checkpointToUpdate
+                                                                .checkpointId!,
+                                                            [expense]);
+                                                    checkpointToUpdate.expenses
+                                                        .remove(expense);
+                                                    totalExpenses =
+                                                        totalExpenses -
+                                                            expense
+                                                                .values.first;
+                                                    setState(() {});
+                                                  } catch (e) {
+                                                    if (context.mounted) {
+                                                      await showErrorDialog(
+                                                          context,
+                                                          'Something went wrong, please try again later');
+                                                    }
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // TODO Files
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.white54,
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Row(
+                                        children: [
+                                          Padding(
+                                            padding: EdgeInsets.only(
+                                                left: 15,
+                                                top: 8.0,
+                                                bottom: 4.0),
+                                            child: Icon(
+                                              Icons.attach_file_outlined,
+                                              color: Color.fromRGBO(
+                                                  69, 69, 121, 1),
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Text(
+                                              "Files",
+                                              style: TextStyle(
+                                                fontSize: 25,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xff454579),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      IconButton(
+                                          onPressed: () async {
+                                            FilePickerResult? pickedFile =
+                                                await FilePicker.platform
+                                                    .pickFiles();
+                                            if (pickedFile != null) {
+                                              File file = File(pickedFile
+                                                  .files.single.path!);
+                                              try {
+                                                String fileName =
+                                                    file.path.split('/').last;
+                                                await firebaseStorageService
+                                                    .uploadFile(user.uid,
+                                                        widget.tripId, file);
+                                                await tripService
+                                                    .updateCheckpointFileNames(
+                                                        user.uid,
+                                                        widget.tripId,
+                                                        widget.tripDay.dayId,
+                                                        checkpointToUpdate
+                                                            .checkpointId!,
+                                                        fileName);
+                                                String pathToFile =
+                                                    "${(appDocDir).path}/${widget.tripId}/$fileName";
+                                                await File(pathToFile)
+                                                    .create(recursive: true);
+                                                checkpointToUpdate.fileNames
+                                                    .add(fileName);
+                                                files.add(file);
+                                                setState(() {});
+                                              } catch (e) {
+                                                await showErrorDialog(context,
+                                                    'Something went wrong, please try again later');
+                                              }
+                                            }
+                                          },
+                                          icon: const Icon(
+                                            Icons.add_circle,
+                                            size: 35,
+                                          ))
+                                    ],
+                                  ),
+                                  ClipRRect(
+                                    borderRadius: const BorderRadius.only(
+                                        bottomLeft: Radius.circular(20.0),
+                                        bottomRight: Radius.circular(20.0)),
+                                    child: ExpansionTile(
+                                      title: const Text(
+                                        'View files',
+                                        style: TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      collapsedTextColor: Colors.white,
+                                      collapsedIconColor: Colors.white,
+                                      collapsedBackgroundColor:
+                                          const Color(0xff454579),
+                                      collapsedShape:
+                                          const Border(bottom: BorderSide()),
+                                      // TODO Show added files (Title) and add delete button at the end of the tile
+                                      children: files
+                                          .map((file) => ListTile(
+                                                title: Text(
+                                                    file.path.split('/').last),
+                                                onTap: (() async {
+                                                  final restult =
+                                                      await OpenFile.open(
+                                                          file.path.toString());
+                                                  devtools.log(restult.message);
+                                                }),
+                                                trailing: IconButton(
+                                                  icon:
+                                                      const Icon(Icons.delete),
+                                                  onPressed: () async {
+                                                    String fileName = file.path
+                                                        .split('/')
+                                                        .last;
+                                                    try {
+                                                      await firebaseStorageService
+                                                          .deleteFile(
+                                                              user.uid,
+                                                              widget.tripId,
+                                                              fileName);
+                                                      await tripService
+                                                          .deleteCheckpointFileName(
+                                                              user.uid,
+                                                              widget.tripId,
+                                                              widget.tripDay
+                                                                  .dayId,
+                                                              checkpointToUpdate
+                                                                  .checkpointId!,
+                                                              fileName);
+                                                      checkpointToUpdate
+                                                          .fileNames
+                                                          .remove(fileName);
+                                                      files.remove(file);
+                                                      setState(() {});
+                                                    } catch (e) {
+                                                      devtools
+                                                          .log(e.toString());
+                                                      await showErrorDialog(
+                                                          context,
+                                                          'Something went wrong, please try again later');
+                                                    }
+                                                  },
+                                                ),
+                                              ))
+                                          .toList(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // TODO Notes
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.white54,
+                              ),
+                              child: Column(
+                                children: [
+                                  const Row(
+                                    children: [
+                                      Padding(
+                                        padding: EdgeInsets.only(
+                                            left: 15, top: 8.0, bottom: 4.0),
+                                        child: Icon(
+                                          Icons.feed_outlined,
+                                          color: Color.fromRGBO(69, 69, 121, 1),
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: EdgeInsets.all(8.0),
+                                        child: Text(
+                                          "Notes",
+                                          style: TextStyle(
+                                            fontSize: 25,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xff454579),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: TextField(
+                                      controller: _notes,
+                                      maxLength: 300,
+                                      maxLines: 3,
+                                      decoration: const InputDecoration(
+                                          hintText: "Notes..."),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            FilledButton(
+                              child: const Text('Cancel'),
+                              onPressed: () {
+                                Navigator.pop(context);
+                              },
+                            ),
+                            FilledButton(
+                              child: const Text('Finish'),
+                              onPressed: () async {
+                                try {
+                                  Map<String, dynamic> data = {
+                                    "title": _checkpointTitle.text,
+                                    "notes": _notes.text
+                                  };
+                                  await tripService.updateCheckpoint(
+                                      user.uid,
+                                      widget.tripId,
+                                      widget.tripDay.dayId,
+                                      checkpointToUpdate.checkpointId!,
+                                      data);
+                                  setState(() {
+                                    checkpointToUpdate.title =
+                                        _checkpointTitle.text;
+                                  });
+                                } catch (e) {
+                                  await showErrorDialog(context,
+                                      'Something went wrong, please try again later');
+                                }
+                                Navigator.pop(context);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              Flexible(
-                flex: 1,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    FilledButton(
-                      child: const Text('Cancel'),
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                    ),
-                    FilledButton(
-                      child: const Text('Save'),
-                      onPressed: () async {
-                        try {
-                          Map<String, dynamic> data = {
-                            "title": _checkpointTitle.text
-                          };
-                          await tripService.updateCheckpoint(
-                              user.uid,
-                              widget.tripId,
-                              widget.tripDay.dayId,
-                              checkpointToUpdate.checkpointId!,
-                              data);
-                          setState(() {
-                            checkpointToUpdate.title = _checkpointTitle.text;
-                          });
-                        } catch (e) {
-                          await showErrorDialog(context,
-                              'Something went wrong, please try again later');
-                        }
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
+            ),
+          );
+        });
       }),
     );
   }
