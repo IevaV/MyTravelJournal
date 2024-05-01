@@ -9,6 +9,7 @@ import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
 import 'package:mytraveljournal/models/user.dart';
+import 'package:mytraveljournal/services/firebase_storage/firebase_storage_service.dart';
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 import 'package:mytraveljournal/utilities/date_helper.dart';
 import 'package:watch_it/watch_it.dart';
@@ -27,6 +28,8 @@ class PlanFutureTripView extends StatefulWidget
 class _PlanFutureTripViewState extends State<PlanFutureTripView> {
   TripService tripService = getIt<TripService>();
   User user = getIt<User>();
+  FirebaseStorageService firebaseStorageService =
+      getIt<FirebaseStorageService>();
   late final TextEditingController _description;
   late final TextEditingController _tripTitle;
   bool descriptionEdited = false;
@@ -604,6 +607,12 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                                     .subtract(const Duration(days: 1));
                               }
                               try {
+                                for (var checkpoints in day.checkpoints) {
+                                  for (var fileName in checkpoints.fileNames) {
+                                    await firebaseStorageService.deleteFile(
+                                        user.uid, widget.trip.tripId, fileName);
+                                  }
+                                }
                                 await tripService
                                     .batchUpdateAfterTripDayDeletion(
                                         user.uid,

@@ -34,4 +34,14 @@ class FirebaseStorageService {
     final tripFileRef = storageRef.child("$uid/$tripId/$fileName");
     await tripFileRef.delete();
   }
+
+  Future<void> deleteAllFilesInDirectory(String uid, String tripId) async {
+    final storageRef = storage.ref();
+    final tripFileRef = storageRef.child("$uid/$tripId");
+    tripFileRef.listAll().then((allFiles) {
+      for (var file in allFiles.items) {
+        storageRef.child(file.fullPath).delete();
+      }
+    });
+  }
 }

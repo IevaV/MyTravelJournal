@@ -22,7 +22,6 @@ import 'package:open_file_plus/open_file_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:watch_it/watch_it.dart';
-import 'dart:developer' as devtools show log;
 
 class PlanFutureTripDayView extends StatefulWidget
     with WatchItStatefulWidgetMixin {
@@ -458,6 +457,10 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     }
 
     try {
+      for (var fileName in checkpointToDelete.fileNames) {
+        await firebaseStorageService.deleteFile(
+            user.uid, widget.tripId, fileName);
+      }
       await tripService.batchUpdateAfterTripDayCheckpointDeletion(
           user.uid,
           widget.tripId,
@@ -483,20 +486,21 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
 
   Future<void> updateCheckpoint(
       Checkpoint checkpointToUpdate, List<Checkpoint> checkpoints) async {
-    totalExpenses = checkpointToUpdate.expenses
-        .map((e) => e.values.first)
-        .toList()
-        .reduce((a, b) => a + b);
+    if (checkpointToUpdate.expenses.isNotEmpty) {
+      totalExpenses = checkpointToUpdate.expenses
+          .map((e) => e.values.first)
+          .toList()
+          .reduce((a, b) => a + b);
+    }
+
     files = [];
     final appDocDir = await getApplicationDocumentsDirectory();
-    devtools.log(checkpointToUpdate.fileNames.length.toString());
-    devtools.log(appDocDir.toString());
     for (var filename in checkpointToUpdate.fileNames) {
       String pathToFile = "${appDocDir.path}/${widget.tripId}/$filename";
-      devtools.log("File doesn't exist");
-      await firebaseStorageService.downloadFile(
-          user.uid, widget.tripId, filename);
-      // await File(pathToFile).create(recursive: true);
+      if (!(await File(pathToFile).exists())) {
+        await firebaseStorageService.downloadFile(
+            user.uid, widget.tripId, filename);
+      }
       files.add(File(pathToFile));
     }
     showDialog(
@@ -881,7 +885,6 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                               ),
                             ),
                           ),
-                          // TODO Files
                           Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: Container(
@@ -981,16 +984,13 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                           const Color(0xff454579),
                                       collapsedShape:
                                           const Border(bottom: BorderSide()),
-                                      // TODO Show added files (Title) and add delete button at the end of the tile
                                       children: files
                                           .map((file) => ListTile(
                                                 title: Text(
                                                     file.path.split('/').last),
                                                 onTap: (() async {
-                                                  final restult =
-                                                      await OpenFile.open(
-                                                          file.path.toString());
-                                                  devtools.log(restult.message);
+                                                  await OpenFile.open(
+                                                      file.path.toString());
                                                 }),
                                                 trailing: IconButton(
                                                   icon:
@@ -1020,8 +1020,6 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                                       files.remove(file);
                                                       setState(() {});
                                                     } catch (e) {
-                                                      devtools
-                                                          .log(e.toString());
                                                       await showErrorDialog(
                                                           context,
                                                           'Something went wrong, please try again later');
@@ -1036,7 +1034,6 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                               ),
                             ),
                           ),
-                          // TODO Notes
                           Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: Container(

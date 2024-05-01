@@ -5,6 +5,7 @@ import 'package:mytraveljournal/components/dialog_components/show_on_delete_dial
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/user.dart';
+import 'package:mytraveljournal/services/firebase_storage/firebase_storage_service.dart';
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -15,6 +16,8 @@ class FutureTripsView extends StatelessWidget with WatchItMixin {
   Widget build(BuildContext context) {
     User user = getIt<User>();
     TripService tripService = getIt<TripService>();
+    FirebaseStorageService firebaseStorageService =
+        getIt<FirebaseStorageService>();
     List<Trip> userFutureTrips = watchIt<User>().userTrips;
     for (var trip in userFutureTrips) {
       watch(trip);
@@ -89,6 +92,9 @@ class FutureTripsView extends StatelessWidget with WatchItMixin {
                                 context, 'trip "${trip.title}"?');
                           },
                           onDismissed: (direction) async {
+                            await firebaseStorageService
+                                .deleteAllFilesInDirectory(
+                                    user.uid, trip.tripId);
                             try {
                               await tripService.deleteTrip(
                                   user.uid, trip.tripId);
