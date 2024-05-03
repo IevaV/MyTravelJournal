@@ -94,7 +94,7 @@ class FutureTripsView extends StatelessWidget with WatchItMixin {
                           onDismissed: (direction) async {
                             await firebaseStorageService
                                 .deleteAllFilesInDirectory(
-                                    user.uid, trip.tripId);
+                                    "${user.uid}/${trip.tripId}/files");
                             try {
                               await tripService.deleteTrip(
                                   user.uid, trip.tripId);

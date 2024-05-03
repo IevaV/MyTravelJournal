@@ -610,7 +610,8 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                                 for (var checkpoints in day.checkpoints) {
                                   for (var fileName in checkpoints.fileNames) {
                                     await firebaseStorageService.deleteFile(
-                                        user.uid, widget.trip.tripId, fileName);
+                                        "${user.uid}/${widget.trip.tripId}/files",
+                                        fileName);
                                   }
                                 }
                                 await tripService

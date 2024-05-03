@@ -4,22 +4,24 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 class Checkpoint {
-  Checkpoint({
-    required this.chekpointNumber,
-    required this.address,
-    required this.coordinates,
-    required this.marker,
-    required this.expenses,
-    required this.fileNames,
-    this.checkpointId,
-    this.title,
-    this.polyline,
-    this.isVisited = false,
-    this.departureTime,
-    this.arrivalTime,
-    this.polylineDuration,
-    this.notes = "",
-  });
+  Checkpoint(
+      {required this.chekpointNumber,
+      required this.address,
+      required this.coordinates,
+      required this.marker,
+      required this.expenses,
+      required this.fileNames,
+      required this.mediaFilesNames,
+      this.checkpointId,
+      this.title,
+      this.polyline,
+      this.isVisited = false,
+      this.departureTime,
+      this.arrivalTime,
+      this.polylineDuration,
+      this.notes = "",
+      this.rating,
+      this.memoryNotes});
 
   int chekpointNumber;
   String? checkpointId;
@@ -35,6 +37,9 @@ class Checkpoint {
   bool isVisited;
   List<Map<String, dynamic>> expenses;
   List<String> fileNames;
+  int? rating;
+  String? memoryNotes;
+  List<String> mediaFilesNames;
 
   factory Checkpoint.fromFirestore(QueryDocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -60,8 +65,7 @@ class Checkpoint {
           points: polylineCoordinates,
           color: Colors.blue.withOpacity(0.75));
     }
-    print(
-        "${data["expenses"]} and this is Checkpoint ${data["checkpointNumber"]} ");
+
     return Checkpoint(
       chekpointNumber: data["checkpointNumber"],
       address: data["address"],
@@ -91,6 +95,11 @@ class Checkpoint {
           ? []
           : List<String>.from(data["fileNames"] as List),
       notes: data["notes"] ?? "",
+      rating: data["rating"],
+      memoryNotes: data["memoryNotes"],
+      mediaFilesNames: data["mediaFilesNames"] == null
+          ? []
+          : List<String>.from(data["mediaFilesNames"] as List),
     );
   }
 }

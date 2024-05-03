@@ -180,14 +180,14 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                     ["formatted_address"]),
                           );
                           checkpoint = Checkpoint(
-                            chekpointNumber: checkpointNumber,
-                            address: addressData["results"][0]
-                                ["formatted_address"],
-                            coordinates: latLng,
-                            marker: marker,
-                            expenses: [],
-                            fileNames: [],
-                          );
+                              chekpointNumber: checkpointNumber,
+                              address: addressData["results"][0]
+                                  ["formatted_address"],
+                              coordinates: latLng,
+                              marker: marker,
+                              expenses: [],
+                              fileNames: [],
+                              mediaFilesNames: []);
 
                           try {
                             if (widget.tripDay.checkpoints.isNotEmpty) {
@@ -341,6 +341,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
       marker: marker,
       expenses: [],
       fileNames: [],
+      mediaFilesNames: [],
     );
     for (var i = tripDaysCheckpointsModified.length;
         i > checkpointPosition - 1;
@@ -459,7 +460,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     try {
       for (var fileName in checkpointToDelete.fileNames) {
         await firebaseStorageService.deleteFile(
-            user.uid, widget.tripId, fileName);
+            "${user.uid}/${widget.tripId}/files", fileName);
       }
       await tripService.batchUpdateAfterTripDayCheckpointDeletion(
           user.uid,
@@ -484,8 +485,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     }
   }
 
-  Future<void> updateCheckpoint(
-      Checkpoint checkpointToUpdate, List<Checkpoint> checkpoints) async {
+  Future<void> updateCheckpoint(Checkpoint checkpointToUpdate) async {
     if (checkpointToUpdate.expenses.isNotEmpty) {
       totalExpenses = checkpointToUpdate.expenses
           .map((e) => e.values.first)
@@ -496,10 +496,11 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
     files = [];
     final appDocDir = await getApplicationDocumentsDirectory();
     for (var filename in checkpointToUpdate.fileNames) {
-      String pathToFile = "${appDocDir.path}/${widget.tripId}/$filename";
+      String pathToFile =
+          "${appDocDir.path}/${user.uid}/${widget.tripId}/files/$filename";
       if (!(await File(pathToFile).exists())) {
         await firebaseStorageService.downloadFile(
-            user.uid, widget.tripId, filename);
+            "${user.uid}/${widget.tripId}/files", filename);
       }
       files.add(File(pathToFile));
     }
@@ -936,8 +937,9 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                                 String fileName =
                                                     file.path.split('/').last;
                                                 await firebaseStorageService
-                                                    .uploadFile(user.uid,
-                                                        widget.tripId, file);
+                                                    .uploadFile(
+                                                        "${user.uid}/${widget.tripId}/files",
+                                                        file);
                                                 await tripService
                                                     .updateCheckpointFileNames(
                                                         user.uid,
@@ -947,7 +949,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                                             .checkpointId!,
                                                         fileName);
                                                 String pathToFile =
-                                                    "${(appDocDir).path}/${widget.tripId}/$fileName";
+                                                    "${(appDocDir).path}/${widget.tripId}/files/$fileName";
                                                 await File(pathToFile)
                                                     .create(recursive: true);
                                                 checkpointToUpdate.fileNames
@@ -985,48 +987,46 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                       collapsedShape:
                                           const Border(bottom: BorderSide()),
                                       children: files
-                                          .map((file) => ListTile(
-                                                title: Text(
-                                                    file.path.split('/').last),
-                                                onTap: (() async {
-                                                  await OpenFile.open(
-                                                      file.path.toString());
-                                                }),
-                                                trailing: IconButton(
-                                                  icon:
-                                                      const Icon(Icons.delete),
-                                                  onPressed: () async {
-                                                    String fileName = file.path
-                                                        .split('/')
-                                                        .last;
-                                                    try {
-                                                      await firebaseStorageService
-                                                          .deleteFile(
-                                                              user.uid,
-                                                              widget.tripId,
-                                                              fileName);
-                                                      await tripService
-                                                          .deleteCheckpointFileName(
-                                                              user.uid,
-                                                              widget.tripId,
-                                                              widget.tripDay
-                                                                  .dayId,
-                                                              checkpointToUpdate
-                                                                  .checkpointId!,
-                                                              fileName);
-                                                      checkpointToUpdate
-                                                          .fileNames
-                                                          .remove(fileName);
-                                                      files.remove(file);
-                                                      setState(() {});
-                                                    } catch (e) {
-                                                      await showErrorDialog(
-                                                          context,
-                                                          'Something went wrong, please try again later');
-                                                    }
-                                                  },
-                                                ),
-                                              ))
+                                          .map(
+                                            (file) => ListTile(
+                                              title: Text(
+                                                  file.path.split('/').last),
+                                              onTap: (() async {
+                                                await OpenFile.open(
+                                                    file.path.toString());
+                                              }),
+                                              trailing: IconButton(
+                                                icon: const Icon(Icons.delete),
+                                                onPressed: () async {
+                                                  String fileName =
+                                                      file.path.split('/').last;
+                                                  try {
+                                                    await firebaseStorageService
+                                                        .deleteFile(
+                                                            "${user.uid}/${widget.tripId}/files",
+                                                            fileName);
+                                                    await tripService
+                                                        .deleteCheckpointFileName(
+                                                            user.uid,
+                                                            widget.tripId,
+                                                            widget
+                                                                .tripDay.dayId,
+                                                            checkpointToUpdate
+                                                                .checkpointId!,
+                                                            fileName);
+                                                    checkpointToUpdate.fileNames
+                                                        .remove(fileName);
+                                                    files.remove(file);
+                                                    setState(() {});
+                                                  } catch (e) {
+                                                    await showErrorDialog(
+                                                        context,
+                                                        'Something went wrong, please try again later');
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                          )
                                           .toList(),
                                     ),
                                   ),
@@ -1528,8 +1528,7 @@ class _PlanFutureTripDayViewState extends State<PlanFutureTripDayView> {
                                     return [
                                       PopupMenuItem(
                                         onTap: (() async {
-                                          await updateCheckpoint(
-                                              checkpoint, checkpoints);
+                                          await updateCheckpoint(checkpoint);
                                         }),
                                         child: const Row(
                                           children: [

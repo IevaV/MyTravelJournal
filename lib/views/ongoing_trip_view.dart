@@ -1,14 +1,29 @@
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:listenable_collections/listenable_collections.dart';
 import 'package:location/location.dart';
+import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
+import 'package:mytraveljournal/components/dialog_components/show_on_delete_dialog.dart';
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
+import 'package:mytraveljournal/models/user.dart';
+import 'package:mytraveljournal/services/firebase_storage/firebase_storage_service.dart';
+import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 import 'package:mytraveljournal/services/location/location_service.dart';
 import 'package:mytraveljournal/utilities/date_time_apis.dart';
+import 'package:open_file_plus/open_file_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -22,8 +37,13 @@ class OngoingTripView extends StatefulWidget with WatchItStatefulWidgetMixin {
 
 class _OngoingTripViewState extends State<OngoingTripView> {
   LocationService locationService = getIt<LocationService>();
+  FirebaseStorageService firebaseStorageService =
+      getIt<FirebaseStorageService>();
+  TripService tripService = getIt<TripService>();
+  User user = getIt<User>();
   late GoogleMapController mapController;
   final ItemScrollController itemScrollController = ItemScrollController();
+  final ItemScrollController photoVideoController = ItemScrollController();
   late LocationData currentPosition;
   LatLng initialCameraPosition =
       const LatLng(37.42796133580664, -122.085749655962);
@@ -32,6 +52,19 @@ class _OngoingTripViewState extends State<OngoingTripView> {
   late Checkpoint? nextCheckpoint;
   List<Marker> markers = [];
   List<Polyline> polylines = [];
+
+  // Checkpoint info
+  double totalExpenses = 0;
+  List<File> files = [];
+  List<Map<String, dynamic>> expenses = [];
+  String? expenseTitleErrorMessage;
+  String? expenseAmountErrorMessage;
+  late final TextEditingController _expensesTitle;
+  late final TextEditingController _expensesAmount;
+
+  // Add Memories
+  int checkpointRating = 1;
+  late final TextEditingController _memoryNotes;
 
   void _onMapCreated(GoogleMapController controller) {
     mapController = controller;
@@ -69,6 +102,1022 @@ class _OngoingTripViewState extends State<OngoingTripView> {
     }
   }
 
+  Future<void> checkpointInfo(Checkpoint checkpoint) async {
+    if (checkpoint.expenses.isNotEmpty) {
+      totalExpenses = checkpoint.expenses
+          .map((e) => e.values.first)
+          .toList()
+          .reduce((a, b) => a + b);
+    }
+
+    files = [];
+    final appDocDir = await getApplicationDocumentsDirectory();
+    for (var filename in checkpoint.fileNames) {
+      String pathToFile =
+          "${appDocDir.path}/${user.uid}/${widget.trip.tripId}/files/$filename";
+      // if (!(await File(pathToFile).exists())) {
+      await firebaseStorageService.downloadFile(
+          "${user.uid}/${widget.trip.tripId}/files", filename);
+      // }
+      files.add(File(pathToFile));
+    }
+    showDialog(
+      context: context,
+      builder: ((context) {
+        return StatefulBuilder(builder: (context, setState) {
+          expenses = checkpoint.expenses;
+          return Dialog.fullscreen(
+            child: Scaffold(
+              body: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color.fromRGBO(125, 119, 255, 0.984),
+                      Color.fromRGBO(255, 232, 173, 0.984),
+                    ],
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  child: ListBody(
+                    // mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Column(
+                        children: [
+                          Text(
+                            "Checkpoint ${checkpoint.chekpointNumber}",
+                            style: const TextStyle(
+                                fontSize: 30,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.white54,
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Flexible(
+                                        flex: 1,
+                                        child: Padding(
+                                          padding: EdgeInsets.only(
+                                              left: 15, top: 8.0, bottom: 4.0),
+                                          child: Icon(
+                                            Icons.location_on_outlined,
+                                            color:
+                                                Color.fromRGBO(69, 69, 121, 1),
+                                          ),
+                                        ),
+                                      ),
+                                      Flexible(
+                                        flex: 5,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                              bottom: 4.0,
+                                              top: 8.0,
+                                              left: 8.0,
+                                              right: 8.0),
+                                          child: Text(
+                                            checkpoint.address,
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                              color: Color(0xff454579),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  checkpoint.arrivalTime != null ||
+                                          checkpoint.departureTime != null
+                                      ? Row(
+                                          children: [
+                                            const Padding(
+                                              padding: EdgeInsets.only(
+                                                  left: 15,
+                                                  top: 8.0,
+                                                  bottom: 8.0),
+                                              child: Icon(
+                                                Icons.access_time,
+                                                color: Color.fromRGBO(
+                                                    69, 69, 121, 1),
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                  bottom: 8.0,
+                                                  top: 4.0,
+                                                  left: 8.0,
+                                                  right: 8.0),
+                                              child: Text(
+                                                "Arriving at ${checkpoint.arrivalTime!.hour.toString().padLeft(2, '0')}:${checkpoint.arrivalTime!.minute.toString().padLeft(2, '0')} | Leaving at ${checkpoint.departureTime!.hour.toString().padLeft(2, '0')}:${checkpoint.departureTime!.minute.toString().padLeft(2, '0')}",
+                                                style: const TextStyle(
+                                                  fontSize: 18,
+                                                  color: Color(0xff454579),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : const SizedBox(),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.white54,
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        flex: 5,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                              bottom: 4.0,
+                                              top: 8.0,
+                                              left: 8.0,
+                                              right: 8.0),
+                                          child: Text(
+                                            checkpoint.title ?? "",
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                              color: Color(0xff454579),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Expenses
+                          const Row(
+                            children: [
+                              Padding(
+                                padding: EdgeInsets.only(
+                                    left: 15, top: 8.0, bottom: 4.0),
+                                child: Icon(
+                                  Icons.sell_outlined,
+                                  color: Color.fromRGBO(69, 69, 121, 1),
+                                ),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.only(
+                                    bottom: 4.0,
+                                    top: 8.0,
+                                    left: 8.0,
+                                    right: 8.0),
+                                child: Text(
+                                  "Expenses",
+                                  style: TextStyle(
+                                    fontSize: 25,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: TextField(
+                              controller: _expensesTitle,
+                              maxLength: 30,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: Colors.white54,
+                                hintText: 'Title',
+                                errorText: expenseTitleErrorMessage,
+                                border: OutlineInputBorder(
+                                    borderSide: BorderSide.none,
+                                    borderRadius: BorderRadius.circular(40.0)),
+                              ),
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                      left: 8.0, right: 8.0, bottom: 8.0),
+                                  child: TextField(
+                                    controller: _expensesAmount,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.allow(
+                                          RegExp(r'^\d*\.?\d{0,2}')),
+                                    ],
+                                    maxLength: 10,
+                                    decoration: InputDecoration(
+                                      filled: true,
+                                      fillColor: Colors.white54,
+                                      hintText: 'Amount',
+                                      counterText: "",
+                                      errorText: expenseAmountErrorMessage,
+                                      suffix: const Text(
+                                        'EUR',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Color.fromRGBO(69, 69, 121, 1),
+                                        ),
+                                      ),
+                                      border: OutlineInputBorder(
+                                          borderSide: BorderSide.none,
+                                          borderRadius:
+                                              BorderRadius.circular(40.0)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: IconButton(
+                                  onPressed: () async {
+                                    if (_expensesAmount.text == "" ||
+                                        _expensesTitle.text == "") {
+                                      _expensesTitle.text == ""
+                                          ? expenseTitleErrorMessage =
+                                              "Title can't be empty"
+                                          : expenseTitleErrorMessage = null;
+                                      _expensesAmount.text == ""
+                                          ? expenseAmountErrorMessage =
+                                              "Amount can't be empty"
+                                          : expenseAmountErrorMessage = null;
+                                    } else {
+                                      expenseTitleErrorMessage = null;
+                                      expenseAmountErrorMessage = null;
+                                      try {
+                                        List<Map<String, dynamic>> expenseData =
+                                            [
+                                          {
+                                            _expensesTitle.text: double.parse(
+                                                _expensesAmount.text),
+                                          }
+                                        ];
+                                        await tripService
+                                            .updateCheckpointExpenses(
+                                                user.uid,
+                                                widget.trip.tripId,
+                                                selectedTripDay.dayId,
+                                                checkpoint.checkpointId!,
+                                                expenseData);
+                                        double price =
+                                            double.parse(_expensesAmount.text);
+                                        checkpoint.expenses
+                                            .add({_expensesTitle.text: price});
+                                        totalExpenses = totalExpenses + price;
+                                        _expensesTitle.clear();
+                                        _expensesAmount.clear();
+                                        if (context.mounted) {
+                                          FocusScope.of(context).unfocus();
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                              content:
+                                                  Text('New expense added'),
+                                            ),
+                                          );
+                                        }
+                                      } catch (e) {
+                                        if (context.mounted) {
+                                          await showErrorDialog(context,
+                                              'Something went wrong, please try again later');
+                                        }
+                                      }
+                                    }
+                                    setState(() {});
+                                  },
+                                  icon: const Icon(
+                                    Icons.add_circle,
+                                    size: 35,
+                                  ),
+                                  color: const Color.fromRGBO(69, 69, 121, 1),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.white54,
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Padding(
+                                        padding: EdgeInsets.all(8.0),
+                                        child: Text(
+                                          "Total",
+                                          style: TextStyle(
+                                            fontSize: 25,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xff454579),
+                                          ),
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(10.0),
+                                          decoration: BoxDecoration(
+                                              shape: BoxShape.rectangle,
+                                              color: const Color(0xbfC94747),
+                                              borderRadius:
+                                                  BorderRadius.circular(50)),
+                                          child: Text(
+                                            "${totalExpenses.toStringAsFixed(2)} EUR",
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  ClipRRect(
+                                    borderRadius: const BorderRadius.only(
+                                        bottomLeft: Radius.circular(20.0),
+                                        bottomRight: Radius.circular(20.0)),
+                                    child: ExpansionTile(
+                                      title: const Text(
+                                        'View expenses',
+                                        style: TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      collapsedTextColor: Colors.white,
+                                      collapsedIconColor: Colors.white,
+                                      collapsedBackgroundColor:
+                                          const Color(0xff454579),
+                                      collapsedShape:
+                                          const Border(bottom: BorderSide()),
+                                      children: expenses
+                                          .map(
+                                            (expense) => ListTile(
+                                              leading: Text(expense.keys.first),
+                                              title: Center(
+                                                child: Text(expense.values.first
+                                                    .toStringAsFixed(2)),
+                                              ),
+                                              trailing: IconButton(
+                                                icon: const Icon(Icons.delete),
+                                                onPressed: () async {
+                                                  try {
+                                                    await tripService
+                                                        .deleteCheckpointExpense(
+                                                            user.uid,
+                                                            widget.trip.tripId,
+                                                            selectedTripDay
+                                                                .dayId,
+                                                            checkpoint
+                                                                .checkpointId!,
+                                                            [expense]);
+                                                    checkpoint.expenses
+                                                        .remove(expense);
+                                                    totalExpenses =
+                                                        totalExpenses -
+                                                            expense
+                                                                .values.first;
+                                                    setState(() {});
+                                                  } catch (e) {
+                                                    if (context.mounted) {
+                                                      await showErrorDialog(
+                                                          context,
+                                                          'Something went wrong, please try again later');
+                                                    }
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.white54,
+                              ),
+                              child: Column(
+                                children: [
+                                  const Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Padding(
+                                            padding: EdgeInsets.only(
+                                                left: 15,
+                                                top: 8.0,
+                                                bottom: 4.0),
+                                            child: Icon(
+                                              Icons.attach_file_outlined,
+                                              color: Color.fromRGBO(
+                                                  69, 69, 121, 1),
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Text(
+                                              "Files",
+                                              style: TextStyle(
+                                                fontSize: 25,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xff454579),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  ClipRRect(
+                                    borderRadius: const BorderRadius.only(
+                                        bottomLeft: Radius.circular(20.0),
+                                        bottomRight: Radius.circular(20.0)),
+                                    child: ExpansionTile(
+                                      title: const Text(
+                                        'View files',
+                                        style: TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      collapsedTextColor: Colors.white,
+                                      collapsedIconColor: Colors.white,
+                                      collapsedBackgroundColor:
+                                          const Color(0xff454579),
+                                      collapsedShape:
+                                          const Border(bottom: BorderSide()),
+                                      children: files
+                                          .map((file) => ListTile(
+                                                title: Text(
+                                                    file.path.split('/').last),
+                                                onTap: (() async {
+                                                  await OpenFile.open(
+                                                      file.path.toString());
+                                                }),
+                                              ))
+                                          .toList(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.white54,
+                              ),
+                              child: Column(
+                                children: [
+                                  const Row(
+                                    children: [
+                                      Padding(
+                                        padding: EdgeInsets.only(
+                                            left: 15, top: 8.0, bottom: 4.0),
+                                        child: Icon(
+                                          Icons.feed_outlined,
+                                          color: Color.fromRGBO(69, 69, 121, 1),
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: EdgeInsets.all(8.0),
+                                        child: Text(
+                                          "Notes",
+                                          style: TextStyle(
+                                            fontSize: 25,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xff454579),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Text(checkpoint.notes)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            FilledButton(
+                              child: const Text('Back'),
+                              onPressed: () {
+                                Navigator.pop(context);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        });
+      }),
+    );
+  }
+
+  Future<void> addMemories(Checkpoint checkpoint) async {
+    checkpointRating = checkpoint.rating ?? 1;
+    _memoryNotes.text = checkpoint.memoryNotes ?? "";
+    var photosVideosList = ListNotifier();
+    final appDocDir = await getApplicationDocumentsDirectory();
+    for (var mediaFilename in checkpoint.mediaFilesNames) {
+      String pathToFile =
+          "${appDocDir.path}/${user.uid}/${widget.trip.tripId}/memories/$mediaFilename";
+      // if (!(await File(pathToFile).exists())) {
+      await firebaseStorageService.downloadFile(
+          "${user.uid}/${widget.trip.tripId}/memories", mediaFilename);
+      // }
+      photosVideosList.add(File(pathToFile));
+    }
+    showDialog(
+      context: context,
+      builder: ((context) {
+        return StatefulBuilder(builder: (context, setState) {
+          return Dialog.fullscreen(
+            child: Scaffold(
+              appBar: AppBar(
+                title: Text(
+                  'Checkpoint ${checkpoint.chekpointNumber}',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold),
+                ),
+                backgroundColor: const Color(0xff454579).withAlpha(245),
+                centerTitle: true,
+                leading: BackButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                    context.pop();
+                  },
+                  color: Colors.white,
+                ),
+              ),
+              body: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color.fromRGBO(125, 119, 255, 0.984),
+                      Color.fromRGBO(255, 232, 173, 0.984),
+                    ],
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  child: ListBody(
+                    children: [
+                      Column(
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(
+                                top: 15.0,
+                                left: 10.0,
+                                right: 10.0,
+                                bottom: 8.0),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black26,
+                                  blurRadius: 10.0,
+                                  offset: Offset(0.0, 3.0),
+                                ),
+                              ],
+                              color: const Color.fromRGBO(69, 69, 121, 0.702),
+                            ),
+                            child: Column(
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.only(
+                                      left: 8.0, right: 8.0, top: 8.0),
+                                  child: Text(
+                                    'Rate your experience',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                      right: 8.0, left: 8.0, bottom: 8.0),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: List.generate(
+                                      5,
+                                      (index) {
+                                        if (checkpointRating >= index + 1) {
+                                          return IconButton(
+                                            onPressed: () {
+                                              checkpointRating = index + 1;
+                                              setState(() {});
+                                            },
+                                            icon: const Icon(
+                                              Icons.star,
+                                              size: 40,
+                                              color: Color(0xffF4D874),
+                                            ),
+                                          );
+                                        } else {
+                                          return IconButton(
+                                            onPressed: () {
+                                              checkpointRating = index + 1;
+                                              setState(() {});
+                                            },
+                                            icon: const Icon(
+                                              Icons.star_border_outlined,
+                                              size: 40,
+                                              color: Color(0xffF4D874),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            margin: const EdgeInsets.only(
+                                right: 80, top: 10, bottom: 8),
+                            alignment: Alignment.centerLeft,
+                            decoration: const BoxDecoration(
+                              borderRadius: BorderRadius.only(
+                                topRight: Radius.circular(30),
+                                bottomRight: Radius.circular(30),
+                              ),
+                              color: Colors.white54,
+                            ),
+                            child: const Padding(
+                              padding: EdgeInsets.all(15.0),
+                              child: Text(
+                                'Write down your memories!',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xff454579),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(10.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.white54,
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(10.0),
+                                child: TextField(
+                                  controller: _memoryNotes,
+                                  maxLength: 1000,
+                                  maxLines: null,
+                                  decoration: const InputDecoration(
+                                      hintText: "Write your experience here!"),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Container(
+                            margin: const EdgeInsets.only(
+                              left: 80,
+                              top: 10,
+                            ),
+                            alignment: Alignment.centerRight,
+                            decoration: const BoxDecoration(
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(30),
+                                bottomLeft: Radius.circular(30),
+                              ),
+                              color: Color(0xb3454579),
+                            ),
+                            child: const Padding(
+                              padding: EdgeInsets.only(
+                                  right: 60, left: 15, top: 15, bottom: 15),
+                              child: Text(
+                                'Add images and videos!',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Stack(
+                            children: [
+                              Container(
+                                height: 400,
+                                margin: const EdgeInsets.only(
+                                    top: 31.0,
+                                    bottom: 8.0,
+                                    left: 8.0,
+                                    right: 8.0),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  color: Colors.white54,
+                                ),
+                                child: ValueListenableBuilder(
+                                  valueListenable: photosVideosList,
+                                  builder: (context, value, child) =>
+                                      GridView.count(
+                                          padding: const EdgeInsets.all(9),
+                                          mainAxisSpacing: 8,
+                                          crossAxisSpacing: 8,
+                                          crossAxisCount: 3,
+                                          children: List.generate(
+                                              photosVideosList.length, (index) {
+                                            return GestureDetector(
+                                              onTap: () async {
+                                                showDialog(
+                                                  context: context,
+                                                  builder: (context) {
+                                                    bool showBannerOptions =
+                                                        true;
+                                                    return StatefulBuilder(
+                                                        builder: (context,
+                                                            setState) {
+                                                      return Dialog.fullscreen(
+                                                        child:
+                                                            ScrollablePositionedList
+                                                                .builder(
+                                                          initialScrollIndex:
+                                                              index,
+                                                          scrollDirection:
+                                                              Axis.horizontal,
+                                                          itemScrollController:
+                                                              photoVideoController,
+                                                          itemCount:
+                                                              photosVideosList
+                                                                  .length,
+                                                          itemBuilder:
+                                                              (context, index) {
+                                                            return GestureDetector(
+                                                              onHorizontalDragEnd:
+                                                                  (dragDetail) {
+                                                                if (dragDetail
+                                                                        .velocity
+                                                                        .pixelsPerSecond
+                                                                        .dx <
+                                                                    1) {
+                                                                  photoVideoController
+                                                                      .jumpTo(
+                                                                          index:
+                                                                              index + 1);
+                                                                } else {
+                                                                  if (index -
+                                                                          1 >=
+                                                                      0) {
+                                                                    photoVideoController
+                                                                        .jumpTo(
+                                                                            index:
+                                                                                index - 1);
+                                                                  }
+                                                                }
+                                                              },
+                                                              child: Stack(
+                                                                children: [
+                                                                  GestureDetector(
+                                                                    onTap: () {
+                                                                      showBannerOptions =
+                                                                          !showBannerOptions;
+                                                                      setState(
+                                                                          () {});
+                                                                    },
+                                                                    child:
+                                                                        SizedBox(
+                                                                      height: MediaQuery.of(
+                                                                              context)
+                                                                          .size
+                                                                          .height,
+                                                                      width: MediaQuery.of(
+                                                                              context)
+                                                                          .size
+                                                                          .width,
+                                                                      child: Image
+                                                                          .file(
+                                                                        photosVideosList[
+                                                                            index],
+                                                                        fit: BoxFit
+                                                                            .contain,
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  showBannerOptions ==
+                                                                          true
+                                                                      ? Container(
+                                                                          width: MediaQuery.of(context)
+                                                                              .size
+                                                                              .width,
+                                                                          color:
+                                                                              Colors.white70,
+                                                                          child:
+                                                                              Row(
+                                                                            mainAxisAlignment:
+                                                                                MainAxisAlignment.spaceBetween,
+                                                                            children: [
+                                                                              IconButton(
+                                                                                icon: const Icon(Icons.arrow_back),
+                                                                                onPressed: () {
+                                                                                  Navigator.of(context).pop();
+                                                                                  setState(() {});
+                                                                                },
+                                                                              ),
+                                                                              IconButton(
+                                                                                icon: const Icon(Icons.delete),
+                                                                                onPressed: () async {
+                                                                                  String fileNameToDelete = photosVideosList[index].path.split('/').last;
+                                                                                  bool? confirmDelete = await showDeleteDialog(context, '$fileNameToDelete?');
+                                                                                  if (confirmDelete == true) {
+                                                                                    try {
+                                                                                      await firebaseStorageService.deleteFile("${user.uid}/${widget.trip.tripId}/memories", photosVideosList[index].path.split('/').last);
+                                                                                      await tripService.updateCheckpoint(user.uid, widget.trip.tripId, selectedTripDay.dayId, checkpoint.checkpointId!, <String, dynamic>{
+                                                                                        "rating": checkpointRating,
+                                                                                        "memoryNotes": _memoryNotes.text,
+                                                                                        "mediaFilesNames": FieldValue.arrayRemove([
+                                                                                          fileNameToDelete
+                                                                                        ]),
+                                                                                      });
+                                                                                      checkpoint.mediaFilesNames.remove(fileNameToDelete);
+                                                                                      photosVideosList.remove(photosVideosList[index]);
+                                                                                      setState(() {});
+                                                                                    } catch (e) {
+                                                                                      await showErrorDialog(context, 'Something went wrong, please try again later');
+                                                                                    }
+                                                                                  }
+                                                                                },
+                                                                              ),
+                                                                            ],
+                                                                          ),
+                                                                        )
+                                                                      : const SizedBox(),
+                                                                ],
+                                                              ),
+                                                            );
+                                                          },
+                                                        ),
+                                                      );
+                                                    });
+                                                  },
+                                                );
+                                              },
+                                              child: Image.file(
+                                                photosVideosList[index],
+                                              ),
+                                            );
+                                          })),
+                                ),
+                              ),
+                              Positioned(
+                                top: -9,
+                                child: Container(
+                                  margin: const EdgeInsets.all(9.0),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(100),
+                                    color: Colors.white54,
+                                  ),
+                                  child: IconButton(
+                                    onPressed: () async {
+                                      FilePickerResult? pickedFiles =
+                                          await FilePicker.platform
+                                              .pickFiles(allowMultiple: true);
+                                      if (pickedFiles != null) {
+                                        photosVideosList.addAll(pickedFiles
+                                            .paths
+                                            .map((path) => File(path!))
+                                            .toList());
+                                        setState(() {});
+                                      }
+                                    },
+                                    icon: const Icon(
+                                      Icons.add_circle_rounded,
+                                      size: 50,
+                                      color: Color.fromRGBO(69, 69, 121, 1),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(8.0),
+                            color: const Color(0xff454579).withAlpha(245),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                      },
+                                      child: const Text('Cancel'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () async {
+                                        try {
+                                          final mediaFileNames =
+                                              photosVideosList
+                                                  .map((file) =>
+                                                      file.path.split('/').last)
+                                                  .toList();
+                                          await Future.wait(photosVideosList.map(
+                                              (file) => firebaseStorageService
+                                                  .uploadFile(
+                                                      "${user.uid}/${widget.trip.tripId}/memories",
+                                                      file)));
+                                          await tripService.updateCheckpoint(
+                                              user.uid,
+                                              widget.trip.tripId,
+                                              selectedTripDay.dayId,
+                                              checkpoint.checkpointId!,
+                                              <String, dynamic>{
+                                                "rating": checkpointRating,
+                                                "memoryNotes":
+                                                    _memoryNotes.text,
+                                                "mediaFilesNames":
+                                                    FieldValue.arrayUnion(
+                                                  mediaFileNames,
+                                                ),
+                                              });
+                                          checkpoint.rating = checkpointRating;
+
+                                          Navigator.of(context).pop();
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            await showErrorDialog(context,
+                                                'Something went wrong, please try again later');
+                                          }
+                                        }
+                                      },
+                                      child: const Text('Save'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        });
+      }),
+    );
+  }
+
   @override
   void initState() {
     todaysTripDay = widget.trip.days
@@ -77,11 +1126,17 @@ class _OngoingTripViewState extends State<OngoingTripView> {
     nextCheckpoint = todaysTripDay.checkpoints
         .firstWhereOrNull((checkpoint) => checkpoint.isVisited == false);
     currentLocation();
+    _expensesTitle = TextEditingController();
+    _expensesAmount = TextEditingController();
+    _memoryNotes = TextEditingController();
     super.initState();
   }
 
   @override
   void dispose() async {
+    _expensesTitle.dispose();
+    _expensesAmount.dispose();
+    _memoryNotes.dispose();
     super.dispose();
   }
 
@@ -154,12 +1209,13 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                               shape: BoxShape.circle,
                               color: selectedTripDay.dayId ==
                                       widget.trip.days[index].dayId
-                                  ? Color(0xbf7766CB)
+                                  ? const Color(0xbf7766CB)
                                   : Colors.white70,
                               border: todaysTripDay.dayId ==
                                       widget.trip.days[index].dayId
                                   ? Border.all(
-                                      color: Color(0xffFFC212), width: 3.0)
+                                      color: const Color(0xffFFC212),
+                                      width: 3.0)
                                   : null,
                             ),
                             child: Center(
@@ -346,8 +1402,9 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                 .firstWhere((checkpoint) =>
                                     checkpoint.chekpointNumber == index);
                             return Container(
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 6.0),
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 6.0,
+                              ),
                               decoration: const BoxDecoration(
                                 shape: BoxShape.rectangle,
                                 color: Colors.white70,
@@ -373,6 +1430,84 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                   await mapController.showMarkerInfoWindow(
                                       checkpoint.marker.markerId);
                                 }),
+                                leading: (nextCheckpoint != null &&
+                                        nextCheckpoint!.checkpointId ==
+                                            checkpoint.checkpointId)
+                                    ? ElevatedButton(
+                                        onPressed: () async {
+                                          try {
+                                            await tripService.updateCheckpoint(
+                                              user.uid,
+                                              widget.trip.tripId,
+                                              todaysTripDay.dayId,
+                                              checkpoint.checkpointId!,
+                                              {"isVisited": true},
+                                            );
+                                            checkpoint.isVisited = true;
+                                            nextCheckpoint = todaysTripDay
+                                                .checkpoints
+                                                .firstWhereOrNull(
+                                                    (checkpoint) =>
+                                                        checkpoint.isVisited ==
+                                                        false);
+
+                                            setState(() {});
+                                          } catch (e) {
+                                            if (context.mounted) {
+                                              await showErrorDialog(context,
+                                                  'Something went wrong, please try again later');
+                                            }
+                                          }
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                            minimumSize: const Size(50, 50),
+                                            backgroundColor:
+                                                const Color.fromRGBO(
+                                                    201, 71, 71, 0.749),
+                                            shape: const CircleBorder()),
+                                        child: const Text(
+                                          "visited",
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                      )
+                                    : null,
+                                trailing: PopupMenuButton(
+                                  itemBuilder: (context) {
+                                    return [
+                                      PopupMenuItem(
+                                        onTap: (() async {
+                                          await checkpointInfo(checkpoint);
+                                        }),
+                                        child: const Row(
+                                          children: [
+                                            Padding(
+                                              padding: EdgeInsets.all(8),
+                                              child: Icon(Icons.info_outline),
+                                            ),
+                                            Text('View info')
+                                          ],
+                                        ),
+                                      ),
+                                      PopupMenuItem(
+                                        enabled: checkpoint.isVisited,
+                                        onTap: (() async {
+                                          await addMemories(checkpoint);
+                                        }),
+                                        child: const Row(
+                                          children: [
+                                            Padding(
+                                              padding: EdgeInsets.all(8),
+                                              child: Icon(Icons.auto_stories),
+                                            ),
+                                            Text('Add memories')
+                                          ],
+                                        ),
+                                      )
+                                    ];
+                                  },
+                                ),
                               ),
                             );
                           },
