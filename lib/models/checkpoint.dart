@@ -21,7 +21,8 @@ class Checkpoint {
       this.polylineDuration,
       this.notes = "",
       this.rating,
-      this.memoryNotes});
+      this.memoryNotes,
+      this.checkpointOverviewCompleted = false});
 
   int chekpointNumber;
   String? checkpointId;
@@ -40,6 +41,7 @@ class Checkpoint {
   int? rating;
   String? memoryNotes;
   List<String> mediaFilesNames;
+  bool? checkpointOverviewCompleted;
 
   factory Checkpoint.fromFirestore(QueryDocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -100,6 +102,7 @@ class Checkpoint {
       mediaFilesNames: data["mediaFilesNames"] == null
           ? []
           : List<String>.from(data["mediaFilesNames"] as List),
+      checkpointOverviewCompleted: data["checkpointOverviewCompleted"] ?? false,
     );
   }
 }

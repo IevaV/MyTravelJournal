@@ -3,10 +3,8 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:listenable_collections/listenable_collections.dart';
@@ -62,9 +60,15 @@ class _OngoingTripViewState extends State<OngoingTripView> {
   late final TextEditingController _expensesTitle;
   late final TextEditingController _expensesAmount;
 
-  // Add Memories
+  // Add Checkpoint Memories
   int checkpointRating = 1;
   late final TextEditingController _memoryNotes;
+
+  // Add Day Memories
+  String daySentimentScore = "";
+  String weatherScore = "";
+  int favoriteCheckpoint = 1;
+  late final TextEditingController _otherDayNotes;
 
   void _onMapCreated(GoogleMapController controller) {
     mapController = controller;
@@ -658,7 +662,7 @@ class _OngoingTripViewState extends State<OngoingTripView> {
     );
   }
 
-  Future<void> addMemories(Checkpoint checkpoint) async {
+  Future<void> addCheckpointMemories(Checkpoint checkpoint) async {
     checkpointRating = checkpoint.rating ?? 1;
     _memoryNotes.text = checkpoint.memoryNotes ?? "";
     var photosVideosList = ListNotifier();
@@ -1118,6 +1122,353 @@ class _OngoingTripViewState extends State<OngoingTripView> {
     );
   }
 
+  Future<void> addDayMemories(TripDay day) async {
+    int currentStepIndex = 0;
+    daySentimentScore =
+        day.sentimentScore == "" ? "dissatisfied" : day.sentimentScore;
+    weatherScore = day.weatherScore == "" ? "snowy" : day.weatherScore;
+    favoriteCheckpoint = day.favoriteCheckpoint ?? 1;
+    _otherDayNotes.text = day.otherDayNotes;
+    showDialog(
+      context: context,
+      builder: ((context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog.fullscreen(
+              child: Scaffold(
+                body: Stepper(
+                  controlsBuilder: (context, details) {
+                    if (details.currentStep == 0) {
+                      return Row(
+                        children: <Widget>[
+                          TextButton(
+                            onPressed: () {
+                              details.onStepCancel!();
+                            },
+                            child: const Text('Exit'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              details.onStepContinue!();
+                            },
+                            child: const Text('Next'),
+                          ),
+                        ],
+                      );
+                    } else if (details.currentStep == 4) {
+                      return Row(
+                        children: <Widget>[
+                          TextButton(
+                            onPressed: () {
+                              details.onStepCancel!();
+                            },
+                            child: const Text('Back'),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              try {
+                                await tripService.updateTripDay(
+                                  user.uid,
+                                  widget.trip.tripId,
+                                  day.dayId,
+                                  {
+                                    "daySentimentScore": daySentimentScore,
+                                    "weatherScore": weatherScore,
+                                    "favoriteCheckpoint": favoriteCheckpoint,
+                                    "otherDayNotes": _otherDayNotes.text,
+                                    "dayFinished": true
+                                  },
+                                );
+                                day.sentimentScore = daySentimentScore;
+                                day.weatherScore = weatherScore;
+                                day.favoriteCheckpoint = favoriteCheckpoint;
+                                day.otherDayNotes = _otherDayNotes.text;
+                                day.dayFinished = true;
+                                if (context.mounted) {
+                                  context.pop();
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  await showErrorDialog(context,
+                                      'Something went wrong, please try again later');
+                                }
+                              }
+                            },
+                            child: const Text('Finish'),
+                          ),
+                        ],
+                      );
+                    } else {
+                      return Row(
+                        children: <Widget>[
+                          TextButton(
+                            onPressed: () {
+                              details.onStepCancel!();
+                            },
+                            child: const Text('Back'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              details.onStepContinue!();
+                            },
+                            child: const Text('Next'),
+                          ),
+                        ],
+                      );
+                    }
+                  },
+                  currentStep: currentStepIndex,
+                  onStepCancel: () {
+                    if (currentStepIndex > 0) {
+                      currentStepIndex -= 1;
+                      setState(() {});
+                    } else {
+                      context.pop();
+                    }
+                  },
+                  onStepContinue: () {
+                    if (currentStepIndex <= 3) {
+                      currentStepIndex += 1;
+                      setState(() {});
+                    }
+                  },
+                  onStepTapped: (index) {
+                    currentStepIndex = index;
+                    setState(() {});
+                  },
+                  steps: <Step>[
+                    Step(
+                      title: const Text('Today I felt'),
+                      content: Container(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          color: Colors.pink.shade300,
+                          height: 60,
+                          width: double.infinity,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  daySentimentScore = "dissatisfied";
+                                  setState(() {});
+                                },
+                                icon: Icon(
+                                  Icons.sentiment_dissatisfied_outlined,
+                                  color: daySentimentScore == "dissatisfied"
+                                      ? const Color.fromRGBO(
+                                          255, 232, 173, 0.984)
+                                      : Colors.white70,
+                                ),
+                              ),
+                              IconButton(
+                                  onPressed: () {
+                                    daySentimentScore = "neutral";
+                                    setState(() {});
+                                  },
+                                  icon: Icon(
+                                    Icons.sentiment_neutral_outlined,
+                                    color: daySentimentScore == "neutral"
+                                        ? const Color.fromRGBO(
+                                            255, 232, 173, 0.984)
+                                        : Colors.white70,
+                                  )),
+                              IconButton(
+                                  onPressed: () {
+                                    daySentimentScore = "satisfied";
+                                    setState(() {});
+                                  },
+                                  icon: Icon(
+                                    Icons.sentiment_satisfied_alt_outlined,
+                                    color: daySentimentScore == "satisfied"
+                                        ? const Color.fromRGBO(
+                                            255, 232, 173, 0.984)
+                                        : Colors.white70,
+                                  )),
+                              IconButton(
+                                  onPressed: () {
+                                    daySentimentScore = "very_satisfied";
+                                    setState(() {});
+                                  },
+                                  icon: Icon(
+                                    Icons.sentiment_very_satisfied_outlined,
+                                    color: daySentimentScore == "very_satisfied"
+                                        ? const Color.fromRGBO(
+                                            255, 232, 173, 0.984)
+                                        : Colors.white70,
+                                  )),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Step(
+                      title: const Text('Weather was'),
+                      content: Container(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          color: Colors.blue.shade300,
+                          height: 60,
+                          width: double.infinity,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  weatherScore = "snowy";
+                                  setState(() {});
+                                },
+                                icon: Icon(
+                                  Icons.ac_unit_outlined,
+                                  color: weatherScore == "snowy"
+                                      ? const Color.fromRGBO(
+                                          255, 232, 173, 0.984)
+                                      : Colors.white70,
+                                ),
+                              ),
+                              IconButton(
+                                  onPressed: () {
+                                    weatherScore = "rainy";
+                                    setState(() {});
+                                  },
+                                  icon: Icon(
+                                    Icons.water_drop_outlined,
+                                    color: weatherScore == "rainy"
+                                        ? const Color.fromRGBO(
+                                            255, 232, 173, 0.984)
+                                        : Colors.white70,
+                                  )),
+                              IconButton(
+                                  onPressed: () {
+                                    weatherScore = "cloudy";
+                                    setState(() {});
+                                  },
+                                  icon: Icon(
+                                    Icons.wb_cloudy_outlined,
+                                    color: weatherScore == "cloudy"
+                                        ? const Color.fromRGBO(
+                                            255, 232, 173, 0.984)
+                                        : Colors.white70,
+                                  )),
+                              IconButton(
+                                  onPressed: () {
+                                    weatherScore = "sunny";
+                                    setState(() {});
+                                  },
+                                  icon: Icon(
+                                    Icons.wb_sunny_outlined,
+                                    color: weatherScore == "sunny"
+                                        ? const Color.fromRGBO(
+                                            255, 232, 173, 0.984)
+                                        : Colors.white70,
+                                  )),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Step(
+                      title: const Text('My favorite checkpoint'),
+                      content: DropdownMenu(
+                        initialSelection: favoriteCheckpoint,
+                        onSelected: (value) {
+                          favoriteCheckpoint = value!;
+                          setState(() {});
+                        },
+                        dropdownMenuEntries: day.checkpoints
+                            .map(
+                              (checkpoint) => DropdownMenuEntry(
+                                  value: checkpoint.chekpointNumber,
+                                  label:
+                                      "Checkpoint ${checkpoint.chekpointNumber}"),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                    Step(
+                      title: const Text('Overview checkpoint memories'),
+                      content: SizedBox(
+                        width: double.infinity,
+                        height: 300,
+                        child: Scrollbar(
+                          child: ListView(
+                            children: [
+                              Table(
+                                children: List.generate(
+                                  day.checkpoints.length,
+                                  (index) => TableRow(
+                                    children: [
+                                      Text(
+                                          "Checkpoint ${day.checkpoints[index].chekpointNumber}"),
+                                      TextButton(
+                                        onPressed: () async {
+                                          await addCheckpointMemories(
+                                              day.checkpoints[index]);
+                                        },
+                                        child:
+                                            (day.checkpoints[index].rating !=
+                                                        null ||
+                                                    day.checkpoints[index]
+                                                            .memoryNotes !=
+                                                        null ||
+                                                    day
+                                                        .checkpoints[index]
+                                                        .mediaFilesNames
+                                                        .isNotEmpty)
+                                                ? const Text("Review")
+                                                : const Text("Add memories"),
+                                      ),
+                                      Checkbox(
+                                        checkColor: Colors.white,
+                                        value: day.checkpoints[index]
+                                            .checkpointOverviewCompleted,
+                                        onChanged: (bool? value) {
+                                          tripService.updateCheckpoint(
+                                              user.uid,
+                                              widget.trip.tripId,
+                                              day.dayId,
+                                              day.checkpoints[index]
+                                                  .checkpointId!,
+                                              {
+                                                "checkpointOverviewCompleted": !day
+                                                    .checkpoints[index]
+                                                    .checkpointOverviewCompleted!
+                                              });
+                                          day.checkpoints[index]
+                                                  .checkpointOverviewCompleted =
+                                              value!;
+                                          setState(() {});
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Step(
+                      title: const Text('Other memories'),
+                      content: TextField(
+                        controller: _otherDayNotes,
+                        maxLength: 1000,
+                        maxLines: null,
+                        decoration: const InputDecoration(
+                            hintText: "Anything else you want to remember?"),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      }),
+    );
+  }
+
   @override
   void initState() {
     todaysTripDay = widget.trip.days
@@ -1129,6 +1480,7 @@ class _OngoingTripViewState extends State<OngoingTripView> {
     _expensesTitle = TextEditingController();
     _expensesAmount = TextEditingController();
     _memoryNotes = TextEditingController();
+    _otherDayNotes = TextEditingController();
     super.initState();
   }
 
@@ -1137,6 +1489,7 @@ class _OngoingTripViewState extends State<OngoingTripView> {
     _expensesTitle.dispose();
     _expensesAmount.dispose();
     _memoryNotes.dispose();
+    _otherDayNotes.dispose();
     super.dispose();
   }
 
@@ -1148,6 +1501,17 @@ class _OngoingTripViewState extends State<OngoingTripView> {
     polylines = selectedTripDay.checkpoints.skip(1).map((checkpoint) {
       return checkpoint.polyline!;
     }).toList();
+    if (selectedTripDay.date
+            .isBefore(DateTime.now().subtract(const Duration(days: 1))) &&
+        selectedTripDay.dayFinished == false) {
+      tripService.updateTripDay(
+        user.uid,
+        widget.trip.tripId,
+        selectedTripDay.dayId,
+        {"dayFinished": true},
+      ).then((_) {});
+      selectedTripDay.dayFinished = true;
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -1294,73 +1658,87 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                             ],
                           ),
                         ),
-                        child: ListView.separated(
-                          controller: scrollController,
-                          itemCount: selectedTripDay.checkpoints.length + 1,
-                          separatorBuilder: (context, index) {
-                            if (index > 0) {
-                              return SizedBox(
-                                height: 120,
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        Container(
-                                          margin: const EdgeInsets.only(
-                                              right: 10.0, top: 10.0),
-                                          height: 38,
-                                          child: ElevatedButton.icon(
-                                            label: Text(
-                                              selectedTripDay
-                                                          .checkpoints[
-                                                              index - 1]
-                                                          .departureTime ==
-                                                      null
-                                                  ? "Select departure time"
-                                                  : "Leaving at ${(selectedTripDay.checkpoints[index - 1].departureTime!.hour).toString().padLeft(2, '0')}:${(selectedTripDay.checkpoints[index - 1].departureTime!.minute).toString().padLeft(2, '0')}",
-                                              style: const TextStyle(
-                                                  color: Colors.white),
+                        child: Column(
+                          children: [
+                            Container(
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                              ),
+                              height: 50,
+                              child: ListView(
+                                controller: scrollController,
+                                children: [
+                                  Stack(
+                                    children: [
+                                      selectedTripDay.dayFinished == true
+                                          ? Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8.0),
+                                              child: IconButton(
+                                                icon: const Icon(
+                                                    Icons.auto_stories),
+                                                onPressed: () async {
+                                                  await addDayMemories(
+                                                      selectedTripDay);
+                                                },
+                                              ),
+                                            )
+                                          : const SizedBox(),
+                                      Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Center(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  Theme.of(context).hintColor,
+                                              borderRadius:
+                                                  const BorderRadius.all(
+                                                      Radius.circular(10)),
                                             ),
-                                            icon: const Icon(
-                                              Icons.access_time,
-                                              color: Colors.white,
-                                            ),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  const Color(0xff7D77FF),
-                                            ),
-                                            onPressed: () {},
+                                            height: 4,
+                                            width: 40,
+                                            margin: const EdgeInsets.symmetric(
+                                                vertical: 10),
                                           ),
-                                        )
-                                      ],
-                                    ),
-                                    const Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.arrow_downward,
                                         ),
-                                      ],
-                                    ),
-                                    Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.start,
-                                        children: [
-                                          Container(
+                                      ),
+                                    ],
+                                  )
+                                ],
+                              ),
+                            ),
+                            Flexible(
+                              flex: 1,
+                              child: ListView.separated(
+                                padding: const EdgeInsets.only(top: 12),
+                                itemCount: selectedTripDay.checkpoints.length,
+                                separatorBuilder: (context, index) {
+                                  if (index ==
+                                      selectedTripDay.checkpoints.length) {
+                                    return const Divider();
+                                  }
+                                  return SizedBox(
+                                    height: 120,
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.end,
+                                          children: [
+                                            Container(
                                               margin: const EdgeInsets.only(
-                                                  left: 10.0),
+                                                  right: 10.0, top: 10.0),
                                               height: 38,
                                               child: ElevatedButton.icon(
                                                 label: Text(
                                                   selectedTripDay
                                                               .checkpoints[
                                                                   index]
-                                                              .arrivalTime ==
+                                                              .departureTime ==
                                                           null
-                                                      ? "Provide departure time"
-                                                      : "Arriving at ${(selectedTripDay.checkpoints[index].arrivalTime!.hour).toString().padLeft(2, '0')}:${(selectedTripDay.checkpoints[index].arrivalTime!.minute).toString().padLeft(2, '0')}",
+                                                      ? "Select departure time"
+                                                      : "Leaving at ${(selectedTripDay.checkpoints[index].departureTime!.hour).toString().padLeft(2, '0')}:${(selectedTripDay.checkpoints[index].departureTime!.minute).toString().padLeft(2, '0')}",
                                                   style: const TextStyle(
                                                       color: Colors.white),
                                                 ),
@@ -1373,144 +1751,196 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                                       const Color(0xff7D77FF),
                                                 ),
                                                 onPressed: () {},
-                                              ))
-                                        ]),
-                                  ],
-                                ),
-                              );
-                            } else {
-                              return const Divider();
-                            }
-                          },
-                          itemBuilder: (BuildContext context, int index) {
-                            if (index == 0) {
-                              return Center(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).hintColor,
-                                    borderRadius: const BorderRadius.all(
-                                        Radius.circular(10)),
-                                  ),
-                                  height: 4,
-                                  width: 40,
-                                  margin:
-                                      const EdgeInsets.symmetric(vertical: 10),
-                                ),
-                              );
-                            }
-                            Checkpoint checkpoint = selectedTripDay.checkpoints
-                                .firstWhere((checkpoint) =>
-                                    checkpoint.chekpointNumber == index);
-                            return Container(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 6.0,
-                              ),
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.rectangle,
-                                color: Colors.white70,
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(12.0),
-                                ),
-                              ),
-                              child: ListTile(
-                                title: Text(
-                                  "Checkpoint ${checkpoint.chekpointNumber}",
-                                  style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xff454579)),
-                                ),
-                                subtitle: Text(checkpoint.title != null
-                                    ? checkpoint.title!
-                                    : ""),
-                                onTap: (() async {
-                                  await animateGoogleMapsCamera(
-                                      checkpoint.coordinates.latitude,
-                                      checkpoint.coordinates.longitude);
-                                  await mapController.showMarkerInfoWindow(
-                                      checkpoint.marker.markerId);
-                                }),
-                                leading: (nextCheckpoint != null &&
-                                        nextCheckpoint!.checkpointId ==
-                                            checkpoint.checkpointId)
-                                    ? ElevatedButton(
-                                        onPressed: () async {
-                                          try {
-                                            await tripService.updateCheckpoint(
-                                              user.uid,
-                                              widget.trip.tripId,
-                                              todaysTripDay.dayId,
-                                              checkpoint.checkpointId!,
-                                              {"isVisited": true},
-                                            );
-                                            checkpoint.isVisited = true;
-                                            nextCheckpoint = todaysTripDay
-                                                .checkpoints
-                                                .firstWhereOrNull(
-                                                    (checkpoint) =>
-                                                        checkpoint.isVisited ==
-                                                        false);
-
-                                            setState(() {});
-                                          } catch (e) {
-                                            if (context.mounted) {
-                                              await showErrorDialog(context,
-                                                  'Something went wrong, please try again later');
-                                            }
-                                          }
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                            minimumSize: const Size(50, 50),
-                                            backgroundColor:
-                                                const Color.fromRGBO(
-                                                    201, 71, 71, 0.749),
-                                            shape: const CircleBorder()),
-                                        child: const Text(
-                                          "visited",
-                                          style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold),
-                                        ),
-                                      )
-                                    : null,
-                                trailing: PopupMenuButton(
-                                  itemBuilder: (context) {
-                                    return [
-                                      PopupMenuItem(
-                                        onTap: (() async {
-                                          await checkpointInfo(checkpoint);
-                                        }),
-                                        child: const Row(
-                                          children: [
-                                            Padding(
-                                              padding: EdgeInsets.all(8),
-                                              child: Icon(Icons.info_outline),
-                                            ),
-                                            Text('View info')
+                                              ),
+                                            )
                                           ],
                                         ),
+                                        const Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.arrow_downward,
+                                            ),
+                                          ],
+                                        ),
+                                        Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.start,
+                                            children: [
+                                              Container(
+                                                  margin: const EdgeInsets.only(
+                                                      left: 10.0),
+                                                  height: 38,
+                                                  child: ElevatedButton.icon(
+                                                    label: Text(
+                                                      selectedTripDay
+                                                                  .checkpoints[
+                                                                      index]
+                                                                  .arrivalTime ==
+                                                              null
+                                                          ? "Provide departure time"
+                                                          : "Arriving at ${(selectedTripDay.checkpoints[index + 1].arrivalTime!.hour).toString().padLeft(2, '0')}:${(selectedTripDay.checkpoints[index + 1].arrivalTime!.minute).toString().padLeft(2, '0')}",
+                                                      style: const TextStyle(
+                                                          color: Colors.white),
+                                                    ),
+                                                    icon: const Icon(
+                                                      Icons.access_time,
+                                                      color: Colors.white,
+                                                    ),
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                      backgroundColor:
+                                                          const Color(
+                                                              0xff7D77FF),
+                                                    ),
+                                                    onPressed: () {},
+                                                  ))
+                                            ]),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                itemBuilder: (BuildContext context, int index) {
+                                  Checkpoint checkpoint = selectedTripDay
+                                      .checkpoints
+                                      .firstWhere((checkpoint) =>
+                                          checkpoint.chekpointNumber ==
+                                          index + 1);
+                                  return Container(
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 6.0,
+                                    ),
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.rectangle,
+                                      color: Colors.white70,
+                                      borderRadius: BorderRadius.all(
+                                        Radius.circular(12.0),
                                       ),
-                                      PopupMenuItem(
-                                        enabled: checkpoint.isVisited,
-                                        onTap: (() async {
-                                          await addMemories(checkpoint);
-                                        }),
-                                        child: const Row(
-                                          children: [
-                                            Padding(
-                                              padding: EdgeInsets.all(8),
-                                              child: Icon(Icons.auto_stories),
+                                    ),
+                                    child: ListTile(
+                                      title: Text(
+                                        "Checkpoint ${checkpoint.chekpointNumber}",
+                                        style: const TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xff454579)),
+                                      ),
+                                      subtitle: Text(checkpoint.title != null
+                                          ? checkpoint.title!
+                                          : ""),
+                                      onTap: (() async {
+                                        await animateGoogleMapsCamera(
+                                            checkpoint.coordinates.latitude,
+                                            checkpoint.coordinates.longitude);
+                                        await mapController
+                                            .showMarkerInfoWindow(
+                                                checkpoint.marker.markerId);
+                                      }),
+                                      leading: (nextCheckpoint != null &&
+                                              nextCheckpoint!.checkpointId ==
+                                                  checkpoint.checkpointId)
+                                          ? ElevatedButton(
+                                              onPressed: () async {
+                                                try {
+                                                  await tripService
+                                                      .updateCheckpoint(
+                                                    user.uid,
+                                                    widget.trip.tripId,
+                                                    todaysTripDay.dayId,
+                                                    checkpoint.checkpointId!,
+                                                    {"isVisited": true},
+                                                  );
+                                                  nextCheckpoint = todaysTripDay
+                                                      .checkpoints
+                                                      .firstWhereOrNull(
+                                                          (checkpoint) =>
+                                                              checkpoint
+                                                                  .isVisited ==
+                                                              false);
+                                                  if (nextCheckpoint == null) {
+                                                    await tripService
+                                                        .updateTripDay(
+                                                      user.uid,
+                                                      widget.trip.tripId,
+                                                      todaysTripDay.dayId,
+                                                      {"dayFinished": true},
+                                                    );
+                                                    todaysTripDay.dayFinished =
+                                                        true;
+                                                  }
+                                                  checkpoint.isVisited = true;
+                                                  setState(() {});
+                                                } catch (e) {
+                                                  if (context.mounted) {
+                                                    await showErrorDialog(
+                                                        context,
+                                                        'Something went wrong, please try again later');
+                                                  }
+                                                }
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                  minimumSize:
+                                                      const Size(50, 50),
+                                                  backgroundColor:
+                                                      const Color.fromRGBO(
+                                                          201, 71, 71, 0.749),
+                                                  shape: const CircleBorder()),
+                                              child: const Text(
+                                                "visited",
+                                                style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight:
+                                                        FontWeight.bold),
+                                              ),
+                                            )
+                                          : null,
+                                      trailing: PopupMenuButton(
+                                        itemBuilder: (context) {
+                                          return [
+                                            PopupMenuItem(
+                                              onTap: (() async {
+                                                await checkpointInfo(
+                                                    checkpoint);
+                                              }),
+                                              child: const Row(
+                                                children: [
+                                                  Padding(
+                                                    padding: EdgeInsets.all(8),
+                                                    child: Icon(
+                                                        Icons.info_outline),
+                                                  ),
+                                                  Text('View info')
+                                                ],
+                                              ),
                                             ),
-                                            Text('Add memories')
-                                          ],
-                                        ),
-                                      )
-                                    ];
-                                  },
-                                ),
+                                            PopupMenuItem(
+                                              enabled: (checkpoint.isVisited ||
+                                                  selectedTripDay.dayFinished),
+                                              onTap: (() async {
+                                                await addCheckpointMemories(
+                                                    checkpoint);
+                                              }),
+                                              child: const Row(
+                                                children: [
+                                                  Padding(
+                                                    padding: EdgeInsets.all(8),
+                                                    child: Icon(
+                                                        Icons.auto_stories),
+                                                  ),
+                                                  Text('Add memories')
+                                                ],
+                                              ),
+                                            )
+                                          ];
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
-                            );
-                          },
+                            ),
+                          ],
                         ),
                       );
                     },
@@ -1527,14 +1957,18 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                               bottomRight: Radius.circular(12.0))),
                       child: TextButton(
                         onPressed: () async {
-                          await animateGoogleMapsCamera(
-                              nextCheckpoint!.coordinates.latitude,
-                              nextCheckpoint!.coordinates.longitude);
-                          await mapController.showMarkerInfoWindow(
-                              nextCheckpoint!.marker.markerId);
+                          if (nextCheckpoint != null) {
+                            await animateGoogleMapsCamera(
+                                nextCheckpoint!.coordinates.latitude,
+                                nextCheckpoint!.coordinates.longitude);
+                            await mapController.showMarkerInfoWindow(
+                                nextCheckpoint!.marker.markerId);
+                          }
                         },
                         child: Text(
-                          "Next: Checkpoint ${nextCheckpoint!.chekpointNumber}",
+                          nextCheckpoint != null
+                              ? "Next: Checkpoint ${nextCheckpoint!.chekpointNumber}"
+                              : "All checkpoints visited today!",
                           style: const TextStyle(
                               color: Color(0xff46467A),
                               fontWeight: FontWeight.bold),
