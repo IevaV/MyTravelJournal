@@ -3,18 +3,29 @@ import 'package:flutter/material.dart';
 import 'package:mytraveljournal/models/checkpoint.dart';
 
 class TripDay extends ChangeNotifier {
-  TripDay(
-      {required this.dayId,
-      required this.dayNumber,
-      required this.date,
-      this.checkpoints = const [],
-      this.planned = false});
+  TripDay({
+    required this.dayId,
+    required this.dayNumber,
+    required this.date,
+    this.checkpoints = const [],
+    this.planned = false,
+    this.sentimentScore = "",
+    this.weatherScore = "",
+    this.otherDayNotes = "",
+    this.favoriteCheckpoint,
+    this.dayFinished = false,
+  });
 
   String dayId;
   int dayNumber;
   DateTime date;
   List<Checkpoint> checkpoints;
   bool planned;
+  String sentimentScore;
+  String weatherScore;
+  int? favoriteCheckpoint;
+  String otherDayNotes;
+  bool dayFinished;
 
   factory TripDay.fromFirestore(QueryDocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -24,6 +35,11 @@ class TripDay extends ChangeNotifier {
       date: data["date"].toDate() ?? DateTime.now(),
       checkpoints: [],
       planned: data["planned"] ?? false,
+      sentimentScore: data["daySentimentScore"] ?? "",
+      weatherScore: data["weatherScore"] ?? "",
+      otherDayNotes: data["otherDayNotes"] ?? "",
+      favoriteCheckpoint: data["favoriteCheckpoint"],
+      dayFinished: data["dayFinished"] ?? false,
     );
   }
 

@@ -82,158 +82,216 @@ class _SignUpViewState extends State<SignUpView> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      backgroundColor: ColorConstants.primaryYellow,
-      appBar: AppBar(
-        title: const Text('Create Account'),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Flexible(
-              flex: 2,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  TextField(
-                    controller: _username,
-                    enableSuggestions: false,
-                    autocorrect: false,
-                    maxLength: 30,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'\w')),
-                    ],
-                    onChanged: (usernameInputText) {
-                      usernameInputText = usernameInputText.toLowerCase();
-                      _username.value = TextEditingValue(
-                        text: usernameInputText,
-                        selection: _username.selection,
-                      );
-                      usernameValidation(usernameInputText);
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Username',
-                      hintText: 'Enter your username here',
-                      labelStyle: const TextStyle(color: Colors.black),
-                      helperText: usernameAvailable,
-                      helperStyle: const TextStyle(
-                        color: Colors.green,
-                      ),
-                      errorText: usernameErrorMessage,
-                      filled: true,
-                      fillColor: ColorConstants.yellowPlaceholderBackground,
-                    ),
-                  ),
-                  AuthInputField(
-                    textController: _email,
-                    hintText: 'Enter your email here',
-                    obscureText: false,
-                  ),
-                  AuthInputField(
-                    textController: _password,
-                    hintText: 'Enter your password here',
-                    obscureText: true,
-                  ),
-                  AuthInputField(
-                    textController: _passwordConfirm,
-                    hintText: 'Confirm your password here',
-                    obscureText: true,
-                  )
-                ],
-              ),
-            ),
-            Flexible(
-              flex: 1,
-              child: Column(
-                children: [
-                  TextButton(
-                    onPressed: () async {
-                      if (!isUsernameValid) {
-                        return showErrorDialog(context, 'Invalid username');
-                      }
-                      final username = _username.text;
-                      final email = _email.text;
-                      final password = _password.text;
-                      final passwordConfirm = _passwordConfirm.text;
-                      if (password == passwordConfirm) {
-                        try {
-                          AuthUser user = await AuthService.firebase()
-                              .createUser(email: email, password: password);
-                          AuthService.firebase().sendEmailVerification();
-                          userService.addUsername(username, user.uid);
-                          userService.addUser(username, user.uid);
-                          userService.cancelListenToUsernames();
-                          await userService.usernameListener.cancel();
-                          if (context.mounted) {
-                            context.go('/verify-email');
-                          }
-                        } on WeakPasswordAuthException {
-                          showErrorDialog(context, 'Weak password');
-                        } on EmailAlreadyInUseAuthException {
-                          showErrorDialog(context, 'Email is already in use');
-                        } on InvalidEmailAuthException {
-                          showErrorDialog(
-                              context, 'This is an invalid email address');
-                        } on GenericAuthException {
-                          await showErrorDialog(context, 'Failed to register');
-                        }
-                      } else {
-                        showErrorDialog(
-                            context, 'Password fields do not match!');
-                      }
-                    },
-                    style: ButtonStyle(
-                      minimumSize: MaterialStateProperty.all(
-                        const Size(250, 50),
-                      ),
-                      backgroundColor: MaterialStateColor.resolveWith(
-                          (states) => ColorConstants.primaryTurquoise),
-                      shape: MaterialStateProperty.all(
-                        RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      elevation: MaterialStateProperty.all(3.0),
-                    ),
-                    child: const Text(
-                      'SIGN UP',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                        color: ColorConstants.assetColorWhite,
-                      ),
-                    ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color.fromRGBO(125, 119, 255, 0.984),
+              Color.fromRGBO(255, 232, 173, 0.984),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Flexible(
+                flex: 1,
+                child: Container(
+                  height: 220,
+                  width: 410,
+                  decoration: const BoxDecoration(
+                      borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(60),
+                          bottomRight: Radius.circular(60)),
+                      color: Colors.white24),
+                  child: const Column(
                     children: [
-                      const Text(
-                        'Already have an account?',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: ColorConstants.assetColorBlack,
+                      Padding(
+                        padding: EdgeInsets.only(
+                          top: 25.0,
+                          bottom: 10.0,
                         ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          userService.cancelListenToUsernames();
-                          context.go('/sign-in');
-                        },
-                        child: const Text(
-                          'Sign in',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: ColorConstants.primaryRed,
+                        child: SizedBox(
+                          height: 100,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Image(image: AssetImage('assets/Logo.png')),
+                            ],
                           ),
                         ),
                       ),
+                      Text(
+                        'SIGN UP',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 40,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black26,
+                              blurRadius: 10.0,
+                              offset: Offset(0.0, 3.0),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
-                  )
-                ],
+                  ),
+                ),
               ),
-            ),
-          ],
+              Flexible(
+                flex: 2,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    TextField(
+                      controller: _username,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                      maxLength: 30,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'\w')),
+                      ],
+                      onChanged: (usernameInputText) {
+                        usernameInputText = usernameInputText.toLowerCase();
+                        _username.value = TextEditingValue(
+                          text: usernameInputText,
+                          selection: _username.selection,
+                        );
+                        usernameValidation(usernameInputText);
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Username',
+                        hintText: 'Enter your username here',
+                        labelStyle: const TextStyle(color: Colors.black),
+                        helperText: usernameAvailable,
+                        helperStyle: const TextStyle(
+                          color: Colors.green,
+                        ),
+                        errorText: usernameErrorMessage,
+                        filled: true,
+                        fillColor: ColorConstants.yellowPlaceholderBackground,
+                      ),
+                    ),
+                    AuthInputField(
+                      textController: _email,
+                      hintText: 'Enter your email here',
+                      obscureText: false,
+                      labelText: 'Email',
+                    ),
+                    AuthInputField(
+                      textController: _password,
+                      hintText: 'Enter your password here',
+                      obscureText: true,
+                      labelText: 'Password',
+                    ),
+                    AuthInputField(
+                      textController: _passwordConfirm,
+                      hintText: 'Confirm your password here',
+                      obscureText: true,
+                      labelText: 'Confirm passoword',
+                    )
+                  ],
+                ),
+              ),
+              Flexible(
+                flex: 1,
+                child: Column(
+                  children: [
+                    ElevatedButton(
+                      onPressed: () async {
+                        if (!isUsernameValid) {
+                          return showErrorDialog(context, 'Invalid username');
+                        }
+                        final username = _username.text;
+                        final email = _email.text;
+                        final password = _password.text;
+                        final passwordConfirm = _passwordConfirm.text;
+                        if (password == passwordConfirm) {
+                          try {
+                            AuthUser user = await AuthService.firebase()
+                                .createUser(email: email, password: password);
+                            AuthService.firebase().sendEmailVerification();
+                            userService.addUsername(username, user.uid);
+                            userService.addUser(username, user.uid);
+                            userService.cancelListenToUsernames();
+                            await userService.usernameListener.cancel();
+                            if (context.mounted) {
+                              context.go('/verify-email');
+                            }
+                          } on WeakPasswordAuthException {
+                            showErrorDialog(context, 'Weak password');
+                          } on EmailAlreadyInUseAuthException {
+                            showErrorDialog(context, 'Email is already in use');
+                          } on InvalidEmailAuthException {
+                            showErrorDialog(
+                                context, 'This is an invalid email address');
+                          } on GenericAuthException {
+                            await showErrorDialog(
+                                context, 'Failed to register');
+                          }
+                        } else {
+                          showErrorDialog(
+                              context, 'Password fields do not match!');
+                        }
+                      },
+                      style: ButtonStyle(
+                        minimumSize: MaterialStateProperty.all(
+                          const Size(250, 60),
+                        ),
+                        backgroundColor: MaterialStateColor.resolveWith(
+                            (states) =>
+                                const Color.fromRGBO(119, 102, 203, 0.984)),
+                        shape: MaterialStateProperty.all(
+                          RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                        elevation: MaterialStateProperty.all(3.0),
+                      ),
+                      child: const Text(
+                        'SIGN UP',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 24,
+                          color: ColorConstants.assetColorWhite,
+                        ),
+                      ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Already have an account?',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: ColorConstants.assetColorBlack,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            userService.cancelListenToUsernames();
+                            context.go('/sign-in');
+                          },
+                          child: const Text(
+                            'Sign in',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: ColorConstants.primaryRed,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

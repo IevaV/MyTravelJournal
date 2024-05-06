@@ -10,6 +10,7 @@ import 'package:mytraveljournal/views/future_trips/add_future_trip_view.dart';
 import 'package:mytraveljournal/views/future_trips/plan_future_trip_day_view.dart';
 import 'package:mytraveljournal/views/future_trips/plan_future_trip_view.dart';
 import 'package:mytraveljournal/views/home_view.dart';
+import 'package:mytraveljournal/views/ongoing_trip_view.dart';
 import 'package:mytraveljournal/views/sign_in_view.dart';
 import 'package:mytraveljournal/views/my_profile_view.dart';
 import 'package:mytraveljournal/views/sign_up_view.dart';
@@ -46,7 +47,7 @@ void main() async {
             GoRoute(
               parentNavigatorKey: shellNavigatorKey,
               path: '/home',
-              builder: (context, state) => const HomeView(),
+              builder: (context, state) => HomeView(),
             ),
             GoRoute(
               parentNavigatorKey: shellNavigatorKey,
@@ -108,12 +109,23 @@ void main() async {
           );
         },
       ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/ongoing-trip',
+        builder: (context, state) {
+          Trip trip = state.extra as Trip;
+          return OngoingTripView(
+            trip: trip,
+          );
+        },
+      ),
     ],
   );
 
   runApp(
     MaterialApp.router(
       routerConfig: router,
+      theme: ThemeData(fontFamily: 'Nunito'),
     ),
   );
 }

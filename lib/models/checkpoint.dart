@@ -9,20 +9,39 @@ class Checkpoint {
       required this.address,
       required this.coordinates,
       required this.marker,
+      required this.expenses,
+      required this.fileNames,
+      required this.mediaFilesNames,
       this.checkpointId,
       this.title,
-      this.polyline});
+      this.polyline,
+      this.isVisited = false,
+      this.departureTime,
+      this.arrivalTime,
+      this.polylineDuration,
+      this.notes = "",
+      this.rating,
+      this.memoryNotes,
+      this.checkpointOverviewCompleted = false});
 
   int chekpointNumber;
   String? checkpointId;
   String? title;
   String address;
+  String? polylineDuration;
+  String notes;
   LatLng coordinates;
-  late DateTime arrivalTime;
-  late DateTime departureTime;
+  TimeOfDay? arrivalTime;
+  TimeOfDay? departureTime;
   Marker marker;
   Polyline? polyline;
-  // List<LatLng>? polylineCoordinates;
+  bool isVisited;
+  List<Map<String, dynamic>> expenses;
+  List<String> fileNames;
+  int? rating;
+  String? memoryNotes;
+  List<String> mediaFilesNames;
+  bool? checkpointOverviewCompleted;
 
   factory Checkpoint.fromFirestore(QueryDocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -57,6 +76,33 @@ class Checkpoint {
       checkpointId: doc.id,
       polyline: polyline,
       marker: marker,
+      isVisited: data["isVisited"] ?? false,
+      departureTime: data["departureTime"] != null
+          ? TimeOfDay(
+              hour: data["departureTime"]["hour"],
+              minute: data["departureTime"]["minute"])
+          : null,
+      arrivalTime: data["arrivalTime"] != null
+          ? TimeOfDay(
+              hour: data["arrivalTime"]["hour"],
+              minute: data["arrivalTime"]["minute"])
+          : null,
+      polylineDuration: data["polylineDuration"],
+      expenses: data["expenses"] == null
+          ? []
+          : (data["expenses"] as List)
+              .map((e) => e as Map<String, dynamic>)
+              .toList(),
+      fileNames: data["fileNames"] == null
+          ? []
+          : List<String>.from(data["fileNames"] as List),
+      notes: data["notes"] ?? "",
+      rating: data["rating"],
+      memoryNotes: data["memoryNotes"],
+      mediaFilesNames: data["mediaFilesNames"] == null
+          ? []
+          : List<String>.from(data["mediaFilesNames"] as List),
+      checkpointOverviewCompleted: data["checkpointOverviewCompleted"] ?? false,
     );
   }
 }

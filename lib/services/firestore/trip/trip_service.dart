@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
-import 'package:mytraveljournal/models/user.dart';
 import 'package:mytraveljournal/utilities/date_helper.dart';
 
 class TripService {
@@ -13,22 +11,22 @@ class TripService {
   final _db = FirebaseFirestore.instance;
   late final StreamSubscription<QuerySnapshot> userTripListener;
 
-  Future<List<TripDay>> getTripDays(String uid, String tripId) async {
-    List<TripDay> tripDays = [];
+  // Trip
+
+  Future<List<Trip>> getAllUserTrips(String uid) async {
+    List<Trip> trips = [];
     await _db
         .collection("users")
         .doc(uid)
         .collection("trips")
-        .doc(tripId)
-        .collection("days")
-        .orderBy('dayNumber')
+        .orderBy("createdAt", descending: true)
         .get()
-        .then((querySnapshot) {
+        .then((querySnapshot) async {
       for (var tripDay in querySnapshot.docs) {
-        tripDays.add(TripDay.fromFirestore(tripDay));
+        trips.add(await Trip.createTrip(tripDay.id, tripDay.data()));
       }
     });
-    return tripDays;
+    return trips;
   }
 
   Future<void> updateTrip(
@@ -39,6 +37,15 @@ class TripService {
         .collection("trips")
         .doc(tripId)
         .update(data);
+  }
+
+  Future<void> deleteTrip(String uid, String tripId) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .delete();
   }
 
   Future<Trip> getLatestUserTrip(String uid) {
@@ -53,27 +60,6 @@ class TripService {
       return await Trip.createTrip(
           querySnapshot.docs.first.id, querySnapshot.docs.first.data());
     });
-  }
-
-  Future<void> updateTripDay(String uid, String tripId, String dayId,
-      Map<String, dynamic> data) async {
-    await _db
-        .collection("users")
-        .doc(uid)
-        .collection("trips")
-        .doc(tripId)
-        .collection("days")
-        .doc(dayId)
-        .update(data);
-  }
-
-  Future<void> deleteTrip(String uid, String tripId) async {
-    await _db
-        .collection('users')
-        .doc(uid)
-        .collection('trips')
-        .doc(tripId)
-        .delete();
   }
 
   Future<void> batchUpdateAfterAddingNewTrip(String uid, String title,
@@ -109,6 +95,38 @@ class TripService {
     }
 
     await batch.commit();
+  }
+
+  // Trip Days
+
+  Future<List<TripDay>> getTripDays(String uid, String tripId) async {
+    List<TripDay> tripDays = [];
+    await _db
+        .collection("users")
+        .doc(uid)
+        .collection("trips")
+        .doc(tripId)
+        .collection("days")
+        .orderBy('dayNumber')
+        .get()
+        .then((querySnapshot) {
+      for (var tripDay in querySnapshot.docs) {
+        tripDays.add(TripDay.fromFirestore(tripDay));
+      }
+    });
+    return tripDays;
+  }
+
+  Future<void> updateTripDay(String uid, String tripId, String dayId,
+      Map<String, dynamic> data) async {
+    await _db
+        .collection("users")
+        .doc(uid)
+        .collection("trips")
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .update(data);
   }
 
   Future<void> batchUpdateAfterTripDayDeletion(String uid, String tripId,
@@ -192,33 +210,6 @@ class TripService {
     await batch.commit();
   }
 
-  // Listener for Usernames collection in firestore
-  void listenToUserTrips() {
-    User user = getIt<User>();
-    userTripListener = _db
-        .collection("users")
-        .doc(user.uid)
-        .collection("trips")
-        .orderBy('createdAt')
-        .snapshots()
-        .listen(
-      (querySnapshot) async {
-        for (var docSnapshot in querySnapshot.docChanges) {
-          switch (docSnapshot.type) {
-            case DocumentChangeType.added:
-              user.addTrip(await Trip.createTrip(
-                  docSnapshot.doc.id, docSnapshot.doc.data()));
-              break;
-            case DocumentChangeType.modified:
-              break;
-            case DocumentChangeType.removed:
-              break;
-          }
-        }
-      },
-    );
-  }
-
   Future<void> batchUpdateAfterEditedTripDates(
       String uid,
       String tripId,
@@ -292,11 +283,8 @@ class TripService {
     await batch.commit();
   }
 
-  void cancelListenToUserTrips() async {
-    await userTripListener.cancel();
-  }
+  // Trip Day Checkpoints
 
-  // Add checkpoint for tripDay
   Future<DocumentReference<Map<String, dynamic>>> addCheckpointToTripDay(
       String uid, String tripId, String dayId, Checkpoint checkpoint) async {
     final data = <String, dynamic>{
@@ -314,6 +302,7 @@ class TripService {
             polylineCoordinate.latitude, polylineCoordinate.longitude));
       }
       data["polylineCoordinates"] = polylineGeopoints;
+      data["polylineDuration"] = checkpoint.polylineDuration;
     }
 
     return await _db
@@ -327,7 +316,6 @@ class TripService {
         .add(data);
   }
 
-  // Get all tripDay checkpoints from db
   Future<List<Checkpoint>> getTripDayCheckpoints(
       String uid, String tripId, String dayId) async {
     List<Checkpoint> checkpoints = [];
@@ -392,6 +380,7 @@ class TripService {
       batch.update(updateDayRef, {
         "checkpointNumber": checkpoint.chekpointNumber,
         "polylineCoordinates": polylineGeopoints,
+        "polylineDuration": checkpoint.polylineDuration,
       });
     }
 
@@ -412,6 +401,7 @@ class TripService {
           checkpoint.coordinates.latitude, checkpoint.coordinates.longitude),
       "checkpointNumber": checkpoint.chekpointNumber,
       "address": checkpoint.address,
+      "isVisited": checkpoint.isVisited,
     };
 
     if (checkpoint.polyline != null) {
@@ -421,7 +411,9 @@ class TripService {
             polylineCoordinate.latitude, polylineCoordinate.longitude));
       }
       data["polylineCoordinates"] = polylineGeopoints;
+      data["polylineDuration"] = checkpoint.polylineDuration;
     }
+
     // Find checkpoint to delete and add it to batch
     var checkpointRef = _db
         .collection('users')
@@ -476,5 +468,61 @@ class TripService {
         .collection("checkpoints")
         .doc(checkpointId)
         .update(data);
+  }
+
+  Future<void> updateCheckpointExpenses(String uid, String tripId, String dayId,
+      String checkpointId, List<Map<String, dynamic>> data) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc(checkpointId)
+        .update({"expenses": FieldValue.arrayUnion(data)});
+  }
+
+  Future<void> deleteCheckpointExpense(String uid, String tripId, String dayId,
+      String checkpointId, List<Map<String, dynamic>> data) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc(checkpointId)
+        .update({"expenses": FieldValue.arrayRemove(data)});
+  }
+
+  Future<void> updateCheckpointFileNames(String uid, String tripId, String dayId,
+      String checkpointId, String fileName) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc(checkpointId)
+        .update({"fileNames": FieldValue.arrayUnion([fileName])});
+  }
+
+  Future<void> deleteCheckpointFileName(String uid, String tripId, String dayId,
+      String checkpointId, String fileName) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('trips')
+        .doc(tripId)
+        .collection("days")
+        .doc(dayId)
+        .collection("checkpoints")
+        .doc(checkpointId)
+        .update({"fileNames": FieldValue.arrayRemove([fileName])});
   }
 }

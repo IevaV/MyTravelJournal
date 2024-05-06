@@ -9,6 +9,7 @@ import 'package:mytraveljournal/models/checkpoint.dart';
 import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
 import 'package:mytraveljournal/models/user.dart';
+import 'package:mytraveljournal/services/firebase_storage/firebase_storage_service.dart';
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
 import 'package:mytraveljournal/utilities/date_helper.dart';
 import 'package:watch_it/watch_it.dart';
@@ -27,6 +28,8 @@ class PlanFutureTripView extends StatefulWidget
 class _PlanFutureTripViewState extends State<PlanFutureTripView> {
   TripService tripService = getIt<TripService>();
   User user = getIt<User>();
+  FirebaseStorageService firebaseStorageService =
+      getIt<FirebaseStorageService>();
   late final TextEditingController _description;
   late final TextEditingController _tripTitle;
   bool descriptionEdited = false;
@@ -364,9 +367,14 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
       backgroundColor: Colors.white,
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        title: Text(widget.trip.title),
+        backgroundColor: const Color.fromARGB(255, 119, 102, 203),
+        title: Text(
+          widget.trip.title,
+          style: const TextStyle(color: Colors.white, fontSize: 30),
+        ),
         centerTitle: true,
         leading: BackButton(
+          color: Colors.white,
           onPressed: () async {
             while (context.canPop()) {
               context.pop();
@@ -410,10 +418,6 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                                       await showErrorDialog(context,
                                           'Something went wrong, please try again later');
                                     }
-                                    // widget.trip
-                                    //     .updateTitle(_tripTitle.value.text);
-                                    // setState(() {});
-                                    // Navigator.of(context).pop();
                                   },
                                   child: const Text('Save'),
                                 ),
@@ -424,19 +428,33 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                       );
                     });
               },
-              icon: Icon(Icons.edit))
+              icon: const Icon(
+                Icons.edit,
+                color: Colors.white,
+              ))
         ],
       ),
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Flexible(
-                flex: 1,
-                child: Column(
-                  children: [
-                    TextField(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Flexible(
+              flex: 2,
+              child: Column(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Text(
+                      'Description',
+                      style: TextStyle(
+                          color: Color(0xff454579),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20),
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.all(8),
+                    child: TextField(
                       controller: _description,
                       enableSuggestions: false,
                       autocorrect: false,
@@ -454,9 +472,12 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                         setState(() {});
                       },
                       decoration: InputDecoration(
-                          labelText: 'Description',
                           filled: true,
-                          border: InputBorder.none,
+                          fillColor: const Color.fromARGB(128, 125, 119, 255),
+                          border: OutlineInputBorder(
+                            borderSide: BorderSide.none,
+                            borderRadius: BorderRadius.circular(20.0),
+                          ),
                           suffixIcon: descriptionEdited
                               ? IconButton(
                                   onPressed: () async {
@@ -478,105 +499,193 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                                   icon: const Icon(Icons.check_rounded))
                               : null),
                     ),
-                  ],
-                ),
-              ),
-              Flexible(
-                flex: 1,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10.0),
-                      child: Text(
-                          "${DateFormat('dd/MM/yyyy').format(widget.trip.startDate)} - ${DateFormat('dd/MM/yyyy').format(widget.trip.endDate)}"),
+                  ),
+                  const Text(
+                    'Start date - End date',
+                    style: TextStyle(
+                        color: Color(0xff454579),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        color: const Color.fromRGBO(125, 119, 255, 0.502),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(15.0),
+                            child: Text(
+                              "${DateFormat('dd/MM/yyyy').format(widget.trip.startDate)} - ${DateFormat('dd/MM/yyyy').format(widget.trip.endDate)}",
+                              style: const TextStyle(
+                                fontSize: 18,
+                                color: Color(0xff454579),
+                              ),
+                            ),
+                          ),
+                          IconButton.filledTonal(
+                            onPressed: () async {
+                              await editTripDates();
+                            },
+                            icon: const Icon(Icons.calendar_month),
+                          )
+                        ],
+                      ),
                     ),
-                    IconButton.filledTonal(
-                      onPressed: () async {
-                        await editTripDates();
-                      },
-                      icon: const Icon(Icons.calendar_month),
-                    )
-                  ],
-                ),
+                  ),
+                ],
               ),
-              Flexible(
-                flex: 3,
+            ),
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text(
+                'Days',
+                style: TextStyle(
+                    color: Color(0xff454579),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20),
+              ),
+            ),
+            Flexible(
+              flex: 2,
+              child: Container(
+                decoration: const BoxDecoration(
+                  borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20)),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color.fromRGBO(125, 119, 255, 0.984),
+                      Color.fromRGBO(255, 232, 173, 0.984),
+                    ],
+                  ),
+                ),
                 child: ReorderableListView(
                   children: [
                     for (final day in widget.trip.days)
-                      Dismissible(
-                        background: Container(
-                          color: Colors.redAccent,
-                        ),
+                      Padding(
+                        padding: const EdgeInsets.all(10.0),
                         key: ValueKey<TripDay>(day),
-                        direction: DismissDirection.endToStart,
-                        confirmDismiss: (direction) async {
-                          if (widget.trip.days.length == 1) {
-                            await showErrorDialog(context,
-                                'Failed to delete Day 1, trip must be at least 1 day long');
-                            return null;
-                          } else {
-                            return await showDeleteDialog(
-                                context, 'Day ${day.dayNumber.toString()}?');
-                          }
-                        },
-                        onDismissed: (DismissDirection direction) async {
-                          List<TripDay> tripDaysModified =
-                              widget.trip.days.toList();
-                          DateTime updatedEndDate = widget.trip.endDate
-                              .subtract(const Duration(days: 1));
-                          tripDaysModified.removeAt(day.dayNumber - 1);
-                          for (var i = day.dayNumber - 1;
-                              i < tripDaysModified.length;
-                              i++) {
-                            tripDaysModified[i].dayNumber = i + 1;
-                            tripDaysModified[i].date = tripDaysModified[i]
-                                .date
-                                .subtract(const Duration(days: 1));
-                          }
-                          try {
-                            await tripService.batchUpdateAfterTripDayDeletion(
-                                user.uid,
-                                widget.trip.tripId,
-                                day.dayId,
-                                tripDaysModified,
-                                updatedEndDate);
-                            setState(() {
-                              widget.trip.endDate = updatedEndDate;
-                              widget.trip.days = tripDaysModified;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Day ${day.dayNumber} deleted'),
-                                ),
-                              );
-                            });
-                          } catch (e) {
-                            await showErrorDialog(context,
-                                'Something went wrong, please try again later');
-                          }
-                        },
-                        child: ListTile(
-                          key: ValueKey(day),
-                          leading: ElevatedButton(
-                            onPressed: () async {
-                              await updateDayPlannedState(day);
+                        child: Container(
+                          decoration: BoxDecoration(
+                              color: Colors.white70,
+                              borderRadius: BorderRadius.circular(20)),
+                          child: Dismissible(
+                            background: Container(
+                              color: Colors.redAccent,
+                            ),
+                            key: ValueKey<TripDay>(day),
+                            direction: DismissDirection.endToStart,
+                            confirmDismiss: (direction) async {
+                              if (widget.trip.days.length == 1) {
+                                await showErrorDialog(context,
+                                    'Failed to delete Day 1, trip must be at least 1 day long');
+                                return null;
+                              } else {
+                                return await showDeleteDialog(context,
+                                    'Day ${day.dayNumber.toString()}?');
+                              }
                             },
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: day.planned == false
-                                    ? Colors.grey
-                                    : Colors.green,
-                                shape: const CircleBorder()),
-                            child: Text(day.dayNumber.toString()),
+                            onDismissed: (DismissDirection direction) async {
+                              List<TripDay> tripDaysModified =
+                                  widget.trip.days.toList();
+                              DateTime updatedEndDate = widget.trip.endDate
+                                  .subtract(const Duration(days: 1));
+                              tripDaysModified.removeAt(day.dayNumber - 1);
+                              for (var i = day.dayNumber - 1;
+                                  i < tripDaysModified.length;
+                                  i++) {
+                                tripDaysModified[i].dayNumber = i + 1;
+                                tripDaysModified[i].date = tripDaysModified[i]
+                                    .date
+                                    .subtract(const Duration(days: 1));
+                              }
+                              try {
+                                for (var checkpoints in day.checkpoints) {
+                                  for (var fileName in checkpoints.fileNames) {
+                                    await firebaseStorageService.deleteFile(
+                                        "${user.uid}/${widget.trip.tripId}/files",
+                                        fileName);
+                                  }
+                                }
+                                await tripService
+                                    .batchUpdateAfterTripDayDeletion(
+                                        user.uid,
+                                        widget.trip.tripId,
+                                        day.dayId,
+                                        tripDaysModified,
+                                        updatedEndDate);
+                                setState(() {
+                                  widget.trip.endDate = updatedEndDate;
+                                  widget.trip.days = tripDaysModified;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content:
+                                          Text('Day ${day.dayNumber} deleted'),
+                                    ),
+                                  );
+                                });
+                              } catch (e) {
+                                await showErrorDialog(context,
+                                    'Something went wrong, please try again later');
+                              }
+                            },
+                            child: ListTile(
+                              key: ValueKey(day),
+                              leading: ElevatedButton(
+                                onPressed: () async {
+                                  await updateDayPlannedState(day);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                    minimumSize: const Size(50, 50),
+                                    backgroundColor: day.planned == false
+                                        ? const Color.fromRGBO(
+                                            201, 71, 71, 0.749)
+                                        : const Color.fromRGBO(
+                                            125, 119, 255, 1),
+                                    shape: const CircleBorder()),
+                                child: Text(
+                                  day.dayNumber.toString(),
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              title: Text("Day ${day.dayNumber}"),
+                              subtitle: Text(
+                                  DateFormat('dd/MM/yyyy').format(day.date)),
+                              onTap: () {
+                                GoRouter.of(context).push(
+                                    '/plan-future-trip-day?tripId=${widget.trip.tripId}',
+                                    extra: day);
+                              },
+                              trailing: Container(
+                                padding: const EdgeInsets.all(10.0),
+                                decoration: BoxDecoration(
+                                    shape: BoxShape.rectangle,
+                                    color: day.checkpoints.isEmpty
+                                        ? const Color.fromRGBO(
+                                            201, 71, 71, 0.749)
+                                        : const Color.fromRGBO(
+                                            125, 119, 255, 1),
+                                    borderRadius: BorderRadius.circular(50)),
+                                child: Text(
+                                  "Checkpoints: ${day.checkpoints.length}",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
-                          title: Text("Day ${day.dayNumber}"),
-                          subtitle: Text(
-                              "Checkpoints: ${day.checkpoints.length} \n${DateFormat('dd/MM/yyyy').format(day.date)}"),
-                          onTap: () {
-                            GoRouter.of(context).push(
-                                '/plan-future-trip-day?tripId=${widget.trip.tripId}',
-                                extra: day);
-                          },
                         ),
                       )
                   ],
@@ -611,36 +720,36 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                   },
                 ),
               ),
-              FilledButton(
-                onPressed: () async {
-                  try {
-                    int dayNumber = widget.trip.days.length + 1;
-                    DateTime newDate =
-                        widget.trip.days.last.date.add(const Duration(days: 1));
-                    await tripService.batchUpdateAfterAddingNewTripDay(
-                        user.uid, widget.trip.tripId, dayNumber, newDate);
-                    List<TripDay> updatedDaysList = await tripService
-                        .getTripDays(user.uid, widget.trip.tripId);
-                    setState(() {
-                      widget.trip.endDate = newDate;
-                      widget.trip.days = updatedDaysList.toList();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Day $dayNumber has been added!'),
-                        ),
-                      );
-                    });
-                  } catch (e) {
-                    if (context.mounted) {
-                      await showErrorDialog(context,
-                          'Something went wrong, please try again later');
-                    }
+            ),
+            FilledButton(
+              onPressed: () async {
+                try {
+                  int dayNumber = widget.trip.days.length + 1;
+                  DateTime newDate =
+                      widget.trip.days.last.date.add(const Duration(days: 1));
+                  await tripService.batchUpdateAfterAddingNewTripDay(
+                      user.uid, widget.trip.tripId, dayNumber, newDate);
+                  List<TripDay> updatedDaysList = await tripService.getTripDays(
+                      user.uid, widget.trip.tripId);
+                  setState(() {
+                    widget.trip.endDate = newDate;
+                    widget.trip.days = updatedDaysList.toList();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Day $dayNumber has been added!'),
+                      ),
+                    );
+                  });
+                } catch (e) {
+                  if (context.mounted) {
+                    await showErrorDialog(context,
+                        'Something went wrong, please try again later');
                   }
-                },
-                child: const Text('Add new day'),
-              ),
-            ],
-          ),
+                }
+              },
+              child: const Text('Add new day'),
+            ),
+          ],
         ),
       ),
     );

@@ -1,15 +1,10 @@
-int daysBetween(String start, String end) {
-  DateTime parsedStartDate = DateTime.parse(start);
-  DateTime parsedEndDate = DateTime.parse(end);
-
-  return (parsedEndDate.difference(parsedStartDate).inHours / 24).round();
+int daysBetween(DateTime start, DateTime end) {
+  return start.difference(end).inHours ~/ 24;
 }
 
 List<DateTime> datesBetween(DateTime start, DateTime end) {
   List<DateTime> days = [];
-  for (var i = 0;
-      i < (end.difference(start).inHours / 24).round() + 1;
-      i++) {
+  for (var i = 0; i < (end.difference(start).inHours / 24).round() + 1; i++) {
     days.add(DateTime(
       start.year,
       start.month,
