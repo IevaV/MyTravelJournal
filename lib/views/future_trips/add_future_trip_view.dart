@@ -10,7 +10,9 @@ import 'package:mytraveljournal/utilities/date_helper.dart';
 import 'package:collection/collection.dart';
 
 class AddFutureTripView extends StatefulWidget {
-  const AddFutureTripView({super.key});
+  const AddFutureTripView({super.key, required this.params});
+
+  final Map<String, String> params;
 
   @override
   State<AddFutureTripView> createState() => _AddFutureTripViewState();
@@ -49,10 +51,12 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        backgroundColor: Color.fromRGBO(119, 102, 203, 1),
-        title: const Text(
-          'Create New Trip',
-          style: TextStyle(color: Colors.white, fontSize: 30),
+        backgroundColor: const Color.fromRGBO(119, 102, 203, 1),
+        title: Text(
+          widget.params["tripType"] == "planning"
+              ? 'Create New Trip'
+              : "Create Past Trip",
+          style: const TextStyle(color: Colors.white, fontSize: 30),
         ),
         centerTitle: true,
       ),
@@ -76,11 +80,13 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                   flex: 4,
                   child: Column(
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.all(20.0),
+                      Padding(
+                        padding: const EdgeInsets.all(20.0),
                         child: Text(
-                          'Where you will be traveling to?',
-                          style: TextStyle(
+                          widget.params["tripType"] == "planning"
+                              ? 'Where you will be traveling to?'
+                              : "Where did you travel to?",
+                          style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: Color(0xff454579)),
@@ -104,12 +110,14 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                           ),
                         ),
                       ),
-                      const Padding(
-                        padding: EdgeInsets.all(20.0),
+                      Padding(
+                        padding: const EdgeInsets.all(20.0),
                         child: Text(
-                          'Write short description about your upcoming adventures!',
+                          widget.params["tripType"] == "planning"
+                              ? 'Write short description about your upcoming adventures!'
+                              : "Write short description about your past adventure!",
                           textAlign: TextAlign.end,
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: Colors.white),
@@ -134,12 +142,14 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                           ),
                         ),
                       ),
-                      const Padding(
-                        padding: EdgeInsets.all(20.0),
+                      Padding(
+                        padding: const EdgeInsets.all(20.0),
                         child: Text(
-                          'When your adventure will start?',
+                          widget.params["tripType"] == "planning"
+                              ? 'When your adventure will start?'
+                              : "When did your adventure happen?",
                           textAlign: TextAlign.end,
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: Color(0xff454579)),
@@ -152,6 +162,9 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                           pickedDates: selectedDates,
                           validateSelectedDates: _validateDateInput,
                           textFieldErrorMessage: tripDateErrorMessage,
+                          firstDate: widget.params["tripType"] == "past"
+                              ? DateTime(DateTime.now().year - 50)
+                              : null,
                         ),
                       ),
                     ],
@@ -170,7 +183,8 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                         child: const Text('Next'),
                         onPressed: () async {
                           Trip? trip;
-                          if (selectedDates['dates'] != null) {
+                          if (widget.params["tripType"] == "planning" &&
+                              selectedDates['dates'] != null) {
                             trip = user.userTrips.firstWhereOrNull(
                               (userTrip) {
                                 List<DateTime> datesBetweenSelect =
@@ -215,7 +229,15 @@ class _AddFutureTripViewState extends State<AddFutureTripView> {
                                 _title.text,
                                 _description.text,
                                 selectedDates['dates']!.start,
-                                selectedDates['dates']!.end,
+                                DateTime(
+                                  selectedDates['dates']!.end.year,
+                                  selectedDates['dates']!.end.month,
+                                  selectedDates['dates']!.end.day,
+                                  23,
+                                  59,
+                                  59,
+                                ),
+                                widget.params["tripType"]!,
                               );
                               Trip trip =
                                   await tripService.getLatestUserTrip(user.uid);

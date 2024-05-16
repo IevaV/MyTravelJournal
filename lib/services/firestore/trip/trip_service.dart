@@ -63,7 +63,7 @@ class TripService {
   }
 
   Future<void> batchUpdateAfterAddingNewTrip(String uid, String title,
-      String description, DateTime startDate, DateTime endDate) async {
+      String description, DateTime startDate, DateTime endDate, String state) async {
     final batch = _db.batch();
 
     // Add new trip
@@ -74,6 +74,7 @@ class TripService {
       "startDate": Timestamp.fromDate(startDate),
       "endDate": Timestamp.fromDate(endDate),
       "createdAt": Timestamp.fromDate(DateTime.now()),
+      "state": state,
     };
     batch.set(tripRef, tripData);
 
@@ -498,8 +499,8 @@ class TripService {
         .update({"expenses": FieldValue.arrayRemove(data)});
   }
 
-  Future<void> updateCheckpointFileNames(String uid, String tripId, String dayId,
-      String checkpointId, String fileName) async {
+  Future<void> updateCheckpointFileNames(String uid, String tripId,
+      String dayId, String checkpointId, String fileName) async {
     await _db
         .collection('users')
         .doc(uid)
@@ -509,7 +510,9 @@ class TripService {
         .doc(dayId)
         .collection("checkpoints")
         .doc(checkpointId)
-        .update({"fileNames": FieldValue.arrayUnion([fileName])});
+        .update({
+      "fileNames": FieldValue.arrayUnion([fileName])
+    });
   }
 
   Future<void> deleteCheckpointFileName(String uid, String tripId, String dayId,
@@ -523,6 +526,8 @@ class TripService {
         .doc(dayId)
         .collection("checkpoints")
         .doc(checkpointId)
-        .update({"fileNames": FieldValue.arrayRemove([fileName])});
+        .update({
+      "fileNames": FieldValue.arrayRemove([fileName])
+    });
   }
 }

@@ -24,13 +24,12 @@ class HomeView extends StatelessWidget with WatchItMixin {
       callOnce((context) async {
         try {
           await tripService.updateTrip(
-              user.uid, user.ongoingTrip!.tripId, {"isOngoing": false});
+              user.uid, user.ongoingTrip!.tripId, {"state": "past"});
           user.ongoingTrip = null;
         } catch (e) {
           await showErrorDialog(
               context, 'Something went wrong, please try again later');
         }
-        user.ongoingTrip = null;
       });
     }
     user.ongoingTrip ??= user.userTrips
@@ -56,7 +55,7 @@ class HomeView extends StatelessWidget with WatchItMixin {
         }
         try {
           await tripService.updateTrip(
-              user.uid, user.ongoingTrip!.tripId, {"isOngoing": true});
+              user.uid, user.ongoingTrip!.tripId, {"state": "ongoing"});
         } catch (e) {
           user.ongoingTrip = null;
           await showErrorDialog(

@@ -19,6 +19,7 @@ class User extends ChangeNotifier {
   Future<void> assignUserData(String uid) async {
     this.uid = uid;
     userTrips = await getIt<TripService>().getAllUserTrips(uid);
-    ongoingTrip = userTrips.firstWhereOrNull((trip) => trip.isOngoing == true);
+    ongoingTrip =
+        userTrips.firstWhereOrNull((trip) => trip.state == "ongoing");
   }
 }

@@ -18,7 +18,10 @@ class FutureTripsView extends StatelessWidget with WatchItMixin {
     TripService tripService = getIt<TripService>();
     FirebaseStorageService firebaseStorageService =
         getIt<FirebaseStorageService>();
-    List<Trip> userFutureTrips = watchIt<User>().userTrips;
+    List<Trip> userFutureTrips = watchIt<User>()
+        .userTrips
+        .where((trip) => trip.state == "planning")
+        .toList();
     for (var trip in userFutureTrips) {
       watch(trip);
     }
@@ -114,8 +117,9 @@ class FutureTripsView extends StatelessWidget with WatchItMixin {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     FilledButton(
-                      onPressed: () =>
-                          GoRouter.of(context).push('/add-future-trip'),
+                      onPressed: () => GoRouter.of(context).push(
+                          '/add-future-trip',
+                          extra: {"tripType": "planning"}),
                       child: const Text('Plan new trip'),
                     ),
                   ],

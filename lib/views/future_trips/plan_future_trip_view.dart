@@ -661,9 +661,15 @@ class _PlanFutureTripViewState extends State<PlanFutureTripView> {
                               subtitle: Text(
                                   DateFormat('dd/MM/yyyy').format(day.date)),
                               onTap: () {
-                                GoRouter.of(context).push(
-                                    '/plan-future-trip-day?tripId=${widget.trip.tripId}',
-                                    extra: day);
+                                if (widget.trip.state == "planning") {
+                                  GoRouter.of(context).push(
+                                      '/plan-future-trip-day?tripId=${widget.trip.tripId}',
+                                      extra: day);
+                                } else {
+                                  GoRouter.of(context).push(
+                                      '/plan-past-trip-day?tripId=${widget.trip.tripId}',
+                                      extra: day);
+                                }
                               },
                               trailing: Container(
                                 padding: const EdgeInsets.all(10.0),

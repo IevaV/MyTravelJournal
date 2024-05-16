@@ -10,6 +10,9 @@ import 'package:mytraveljournal/views/future_trips/add_future_trip_view.dart';
 import 'package:mytraveljournal/views/future_trips/plan_future_trip_day_view.dart';
 import 'package:mytraveljournal/views/future_trips/plan_future_trip_view.dart';
 import 'package:mytraveljournal/views/home_view.dart';
+import 'package:mytraveljournal/views/memories/past_trip_memory_view.dart';
+import 'package:mytraveljournal/views/memories/past_trips_view.dart';
+import 'package:mytraveljournal/views/memories/plan_past_trip_day_view.dart';
 import 'package:mytraveljournal/views/ongoing_trip_view.dart';
 import 'package:mytraveljournal/views/sign_in_view.dart';
 import 'package:mytraveljournal/views/my_profile_view.dart';
@@ -59,6 +62,11 @@ void main() async {
               path: '/profile',
               builder: (context, state) => const MyProfileView(),
             ),
+            GoRoute(
+              parentNavigatorKey: shellNavigatorKey,
+              path: '/memories',
+              builder: (context, state) => const PastTripsView(),
+            ),
           ],
           builder: (context, state, child) {
             return BottomNavigationBarScaffold(child: child);
@@ -86,7 +94,10 @@ void main() async {
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
         path: '/add-future-trip',
-        builder: (context, state) => const AddFutureTripView(),
+        builder: (context, state) {
+          Map<String, String> params = state.extra as Map<String, String>;
+          return AddFutureTripView(params: params);
+        },
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
@@ -115,6 +126,27 @@ void main() async {
         builder: (context, state) {
           Trip trip = state.extra as Trip;
           return OngoingTripView(
+            trip: trip,
+          );
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/plan-past-trip-day',
+        builder: (context, state) {
+          TripDay tripDay = state.extra as TripDay;
+          return PlanPastTripDayView(
+            tripId: state.uri.queryParameters['tripId']!,
+            tripDay: tripDay,
+          );
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/past-trip-memories',
+        builder: (context, state) {
+          Trip trip = state.extra as Trip;
+          return PastTripMemoryView(
             trip: trip,
           );
         },

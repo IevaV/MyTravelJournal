@@ -12,7 +12,7 @@ class TripDay extends ChangeNotifier {
     this.sentimentScore = "",
     this.weatherScore = "",
     this.otherDayNotes = "",
-    this.favoriteCheckpoint,
+    this.favoriteCheckpoint = "",
     this.dayFinished = false,
   });
 
@@ -23,7 +23,7 @@ class TripDay extends ChangeNotifier {
   bool planned;
   String sentimentScore;
   String weatherScore;
-  int? favoriteCheckpoint;
+  String favoriteCheckpoint;
   String otherDayNotes;
   bool dayFinished;
 
@@ -38,7 +38,7 @@ class TripDay extends ChangeNotifier {
       sentimentScore: data["daySentimentScore"] ?? "",
       weatherScore: data["weatherScore"] ?? "",
       otherDayNotes: data["otherDayNotes"] ?? "",
-      favoriteCheckpoint: data["favoriteCheckpoint"],
+      favoriteCheckpoint: data["favoriteCheckpoint"] ?? "",
       dayFinished: data["dayFinished"] ?? false,
     );
   }
