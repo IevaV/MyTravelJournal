@@ -1,72 +1,106 @@
+import 'dart:convert';
 import 'dart:io';
-
-import 'package:collection/collection.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
-import 'package:mytraveljournal/components/dialog_components/add_checkpoint_memories_dialog.dart';
 import 'package:mytraveljournal/components/dialog_components/add_day_memories_dialog.dart';
 import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
+import 'package:mytraveljournal/components/dialog_components/add_checkpoint_memories_dialog.dart';
 import 'package:mytraveljournal/locator.dart';
 import 'package:mytraveljournal/models/checkpoint.dart';
-import 'package:mytraveljournal/models/trip.dart';
 import 'package:mytraveljournal/models/trip_day.dart';
 import 'package:mytraveljournal/models/user.dart';
 import 'package:mytraveljournal/services/firebase_storage/firebase_storage_service.dart';
 import 'package:mytraveljournal/services/firestore/trip/trip_service.dart';
+import 'package:mytraveljournal/services/google_maps/google_maps_service.dart';
 import 'package:mytraveljournal/services/location/location_service.dart';
-import 'package:mytraveljournal/utilities/date_time_apis.dart';
+import 'package:http/http.dart' as http;
 import 'package:open_file_plus/open_file_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:watch_it/watch_it.dart';
 
-class OngoingTripView extends StatefulWidget with WatchItStatefulWidgetMixin {
-  const OngoingTripView({super.key, required this.trip});
-  final Trip trip;
+class PlanPastTripDayView extends StatefulWidget
+    with WatchItStatefulWidgetMixin {
+  const PlanPastTripDayView(
+      {super.key, required this.tripId, required this.tripDay});
+
+  final String tripId;
+  final TripDay tripDay;
 
   @override
-  State<OngoingTripView> createState() => _OngoingTripViewState();
+  State<PlanPastTripDayView> createState() => _PlanPastTripDayViewState();
 }
 
-class _OngoingTripViewState extends State<OngoingTripView> {
-  LocationService locationService = getIt<LocationService>();
-  FirebaseStorageService firebaseStorageService =
-      getIt<FirebaseStorageService>();
-  TripService tripService = getIt<TripService>();
-  User user = getIt<User>();
+class _PlanPastTripDayViewState extends State<PlanPastTripDayView> {
   late GoogleMapController mapController;
-  final ItemScrollController itemScrollController = ItemScrollController();
-  final ItemScrollController photoVideoController = ItemScrollController();
+  late LocationData data;
+  LocationService locationService = getIt<LocationService>();
+  GoogleMapsService googleMapsService = getIt<GoogleMapsService>();
   late LocationData currentPosition;
   LatLng initialCameraPosition =
       const LatLng(37.42796133580664, -122.085749655962);
-  late TripDay todaysTripDay;
-  late TripDay selectedTripDay;
-  late Checkpoint? nextCheckpoint;
+  late final SearchController searchController;
+  List<dynamic> autoCompleteSuggestions = [];
   List<Marker> markers = [];
-  List<Polyline> polylines = [];
-
-  // Checkpoint info
-  double totalExpenses = 0;
-  List<File> files = [];
   List<Map<String, dynamic>> expenses = [];
-  String? expenseTitleErrorMessage;
-  String? expenseAmountErrorMessage;
+  List<File> files = [];
+  Marker? tempMarker;
+  TripService tripService = getIt<TripService>();
+  FirebaseStorageService firebaseStorageService =
+      getIt<FirebaseStorageService>();
+  User user = getIt<User>();
+  late final TextEditingController _checkpointTitle;
+  late final TextEditingController _departureTime;
   late final TextEditingController _expensesTitle;
   late final TextEditingController _expensesAmount;
-
-  // Add Checkpoint Memories
+  late final TextEditingController _notes;
+  String checkpointPositionOption = "Add at end";
+  bool selectCheckpointEnabled = false;
+  int checkpointPosition = 1;
+  final GlobalKey<ScaffoldState> _scaffoldkey = GlobalKey<ScaffoldState>();
+  double totalExpenses = 0;
+  String? expenseTitleErrorMessage;
+  String? expenseAmountErrorMessage;
   int checkpointRating = 1;
   late final TextEditingController _memoryNotes;
+  final ItemScrollController photoVideoController = ItemScrollController();
 
   // Add Day Memories
   String daySentimentScore = "";
   String weatherScore = "";
   String favoriteCheckpoint = "";
   late final TextEditingController _otherDayNotes;
+
+  @override
+  void initState() {
+    currentLocation();
+    searchController = SearchController();
+    _checkpointTitle = TextEditingController();
+    _departureTime = TextEditingController();
+    _expensesTitle = TextEditingController();
+    _expensesAmount = TextEditingController();
+    _notes = TextEditingController();
+    _memoryNotes = TextEditingController();
+    _otherDayNotes = TextEditingController();
+    super.initState();
+  }
+
+  @override
+  void dispose() async {
+    searchController.dispose();
+    _checkpointTitle.dispose();
+    _departureTime.dispose();
+    _expensesTitle.dispose();
+    _expensesAmount.dispose();
+    _notes.dispose();
+    _memoryNotes.dispose();
+    _otherDayNotes.dispose();
+    super.dispose();
+  }
 
   void _onMapCreated(GoogleMapController controller) {
     mapController = controller;
@@ -83,30 +117,324 @@ class _OngoingTripViewState extends State<OngoingTripView> {
     );
   }
 
-  Future<void> currentLocation() async {
+  void currentLocation() async {
     await locationService.getServiceEnabled();
     await locationService.getPermissionStatus();
 
     currentPosition = await locationService.getCurrentLocation();
     await animateGoogleMapsCamera(
         currentPosition.latitude!, currentPosition.longitude!);
-    await animateListView();
-    // return LatLng(currentPosition.latitude!, currentPosition.longitude!);
   }
 
-  Future<void> animateListView() async {
-    // Scroll current tripDay into view only if there are more than 5 days in days list
-    if (widget.trip.days.length > 5) {
-      await itemScrollController.scrollTo(
-          index: todaysTripDay.dayNumber - 1,
-          duration: const Duration(seconds: 2),
-          curve: Curves.easeInOutCubic);
+  void addMarker(LatLng latLng) {
+    setState(() {
+      int checkpointNumber =
+          tempMarker == null ? markers.length + 1 : markers.length;
+      MarkerId markerId = MarkerId('Checkpoint $checkpointNumber');
+      Marker selectedLocationMarker = Marker(
+        markerId: markerId,
+        position: latLng,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
+      );
+      if (tempMarker == null) {
+        tempMarker = selectedLocationMarker;
+        markers.add(selectedLocationMarker);
+      } else {
+        markers.removeLast();
+        tempMarker = selectedLocationMarker;
+        markers.add(selectedLocationMarker);
+      }
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(days: 365),
+          content: Column(
+            children: [
+              Text('Do you want to add Checkpoint ${markers.length}?'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  FilledButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).clearSnackBars();
+                      setState(() {
+                        markers.removeLast();
+                        tempMarker = null;
+                      });
+                    },
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () async {
+                      bool addCheckpoint = await createCheckpointDialog();
+                      if (addCheckpoint) {
+                        http.Response response = await googleMapsService
+                            .fetchAddressFromLocation(latLng);
+                        final addressData =
+                            jsonDecode(response.body) as Map<String, dynamic>;
+                        Marker marker;
+                        Checkpoint checkpoint;
+                        if (checkpointPositionOption == "Add at end") {
+                          marker = Marker(
+                            markerId: markerId,
+                            position: latLng,
+                            infoWindow: InfoWindow(
+                                title: markerId.value,
+                                snippet: addressData["results"][0]
+                                    ["formatted_address"]),
+                          );
+                          checkpoint = Checkpoint(
+                              chekpointNumber: checkpointNumber,
+                              address: addressData["results"][0]
+                                  ["formatted_address"],
+                              coordinates: latLng,
+                              marker: marker,
+                              expenses: [],
+                              fileNames: [],
+                              mediaFilesNames: []);
+
+                          try {
+                            final addedCheckpoint =
+                                await tripService.addCheckpointToTripDay(
+                                    user.uid,
+                                    widget.tripId,
+                                    widget.tripDay.dayId,
+                                    checkpoint);
+                            ScaffoldMessenger.of(context).clearSnackBars();
+                            checkpoint.checkpointId = addedCheckpoint.id;
+                            widget.tripDay.addCheckpoint(checkpoint);
+                            markers.removeLast();
+                            markers.add(marker);
+                            tempMarker = null;
+                          } catch (e) {
+                            await showErrorDialog(context,
+                                'Something went wrong, please try again later');
+                          }
+                        } else {
+                          await insertCheckpointBefore(latLng, addressData);
+                        }
+                      }
+                    },
+                    child: const Text('Add'),
+                  )
+                ],
+              )
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  Future<bool> createCheckpointDialog() async {
+    checkpointPositionOption = "Add at end";
+    checkpointPosition = 1;
+    List<Checkpoint> checkpointsToModify = widget.tripDay.checkpoints.toList();
+    checkpointsToModify
+        .sort(((a, b) => a.chekpointNumber.compareTo(b.chekpointNumber)));
+    return await showDialog(
+        barrierDismissible: false,
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return Dialog(
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: Text(
+                          'Add as Checkpoint ${widget.tripDay.checkpoints.length + 1}'),
+                      leading: Radio<String>(
+                        value: "Add at end",
+                        groupValue: checkpointPositionOption,
+                        onChanged: (value) {
+                          setState(() {
+                            checkpointPositionOption = value!;
+                            selectCheckpointEnabled = false;
+                          });
+                        },
+                      ),
+                    ),
+                    ListTile(
+                      title: const Text('Before'),
+                      leading: Radio<String>(
+                        value: "Add before",
+                        groupValue: checkpointPositionOption,
+                        onChanged: checkpointsToModify.isNotEmpty
+                            ? (value) {
+                                setState(() {
+                                  checkpointPositionOption = value!;
+                                  selectCheckpointEnabled = true;
+                                });
+                              }
+                            : null,
+                      ),
+                      trailing: DropdownMenu(
+                          enabled: selectCheckpointEnabled,
+                          initialSelection: 1,
+                          onSelected: (value) {
+                            setState(() {
+                              checkpointPosition = value!;
+                            });
+                          },
+                          dropdownMenuEntries: checkpointsToModify
+                              .map((checkpoint) => DropdownMenuEntry(
+                                  value: checkpoint.chekpointNumber,
+                                  label:
+                                      "Checkpoint ${checkpoint.chekpointNumber}"))
+                              .toList()),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(false);
+                      },
+                      child: const Text('Close'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(true);
+                      },
+                      child: const Text('Add'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        });
+  }
+
+  Future<void> insertCheckpointBefore(
+      LatLng latLng, Map<String, dynamic> addressData) async {
+    markers.removeLast();
+    tempMarker = null;
+    List<Checkpoint> checkpointsToUpdate = [];
+    List<Checkpoint> tripDaysCheckpointsModified =
+        widget.tripDay.checkpoints.toList();
+    List<Marker> tripDayMarkersModified = markers.toList();
+    MarkerId markerId = MarkerId("Checkpoint $checkpointPosition");
+    Marker marker = Marker(
+      markerId: markerId,
+      position: latLng,
+      infoWindow: InfoWindow(
+          title: markerId.value,
+          snippet: addressData["results"][0]["formatted_address"]),
+    );
+    Checkpoint checkpoint = Checkpoint(
+      chekpointNumber: checkpointPosition,
+      address: addressData["results"][0]["formatted_address"],
+      coordinates: latLng,
+      marker: marker,
+      expenses: [],
+      fileNames: [],
+      mediaFilesNames: [],
+    );
+    for (var i = tripDaysCheckpointsModified.length;
+        i > checkpointPosition - 1;
+        i--) {
+      Checkpoint checkpointToUpdate = tripDaysCheckpointsModified
+          .firstWhere((checkpoint) => checkpoint.chekpointNumber == i);
+      checkpointToUpdate.chekpointNumber =
+          checkpointToUpdate.chekpointNumber + 1;
+      Marker newMarker = Marker(
+        markerId: MarkerId("Checkpoint ${checkpointToUpdate.chekpointNumber}"),
+        position: checkpointToUpdate.coordinates,
+        infoWindow: InfoWindow(
+          title: "Checkpoint ${checkpointToUpdate.chekpointNumber}",
+          snippet: checkpointToUpdate.address,
+        ),
+      );
+      tripDayMarkersModified.remove(checkpointToUpdate.marker);
+      checkpointToUpdate.marker = newMarker;
+      tripDayMarkersModified.add(newMarker);
+      checkpointsToUpdate.add(checkpointToUpdate);
+    }
+    tripDayMarkersModified.add(marker);
+
+    try {
+      String addedCheckpointId =
+          await tripService.batchUpdateAfterTripDayCheckpointAddition(
+              user.uid,
+              widget.tripId,
+              widget.tripDay.dayId,
+              checkpoint,
+              checkpointsToUpdate);
+      checkpoint.checkpointId = addedCheckpointId;
+      tripDaysCheckpointsModified.add(checkpoint);
+      setState(() {
+        markers = tripDayMarkersModified;
+        widget.tripDay.checkpoints = tripDaysCheckpointsModified;
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('New checkpoint added'),
+          ),
+        );
+      });
+    } catch (e) {
+      await showErrorDialog(
+          context, 'Something went wrong, please try again later');
     }
   }
 
-  Future<void> checkpointInfo(Checkpoint checkpoint) async {
-    if (checkpoint.expenses.isNotEmpty) {
-      totalExpenses = checkpoint.expenses
+  Future<void> deleteCheckpoint(
+      Checkpoint checkpointToDelete, List<Checkpoint> checkpoints) async {
+    List<Checkpoint> tripDaysCheckpointsModified =
+        widget.tripDay.checkpoints.toList();
+    List<Marker> tripDayMarkersModified = markers.toList();
+    tripDaysCheckpointsModified.remove(checkpointToDelete);
+    tripDayMarkersModified.remove(checkpointToDelete.marker);
+    if (tripDaysCheckpointsModified.isNotEmpty) {
+      for (var i = checkpointToDelete.chekpointNumber;
+          i <= tripDaysCheckpointsModified.length;
+          i++) {
+        Checkpoint checkpointToUpdate = tripDaysCheckpointsModified
+            .firstWhere((checkpoint) => checkpoint.chekpointNumber == i + 1);
+        checkpointToUpdate.chekpointNumber = i;
+        Marker newMarker = Marker(
+          markerId: MarkerId("Checkpoint $i"),
+          position: checkpointToUpdate.coordinates,
+          infoWindow: InfoWindow(
+            title: "Checkpoint ${checkpointToUpdate.chekpointNumber}",
+            snippet: checkpointToUpdate.address,
+          ),
+        );
+        tripDayMarkersModified.remove(checkpointToUpdate.marker);
+        checkpointToUpdate.marker = newMarker;
+        tripDayMarkersModified.add(newMarker);
+      }
+    }
+
+    try {
+      for (var fileName in checkpointToDelete.fileNames) {
+        await firebaseStorageService.deleteFile(
+            "${user.uid}/${widget.tripId}/files", fileName);
+      }
+      await tripService.batchUpdateAfterTripDayCheckpointDeletion(
+          user.uid,
+          widget.tripId,
+          widget.tripDay.dayId,
+          checkpointToDelete.checkpointId!,
+          tripDaysCheckpointsModified);
+      setState(() {
+        markers = tripDayMarkersModified;
+        widget.tripDay.checkpoints = tripDaysCheckpointsModified;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Checkpoint ${checkpointToDelete.chekpointNumber} deleted'),
+          ),
+        );
+      });
+    } catch (e) {
+      await showErrorDialog(
+          context, 'Something went wrong, please try again later');
+    }
+  }
+
+  Future<void> updateCheckpoint(Checkpoint checkpointToUpdate) async {
+    if (checkpointToUpdate.expenses.isNotEmpty) {
+      totalExpenses = checkpointToUpdate.expenses
           .map((e) => e.values.first)
           .toList()
           .reduce((a, b) => a + b);
@@ -114,22 +442,25 @@ class _OngoingTripViewState extends State<OngoingTripView> {
 
     files = [];
     final appDocDir = await getApplicationDocumentsDirectory();
-    for (var filename in checkpoint.fileNames) {
+    for (var filename in checkpointToUpdate.fileNames) {
       String pathToFile =
-          "${appDocDir.path}/${user.uid}/${widget.trip.tripId}/files/$filename";
-      // if (!(await File(pathToFile).exists())) {
-      await firebaseStorageService.downloadFile(
-          "${user.uid}/${widget.trip.tripId}/files", filename);
-      // }
+          "${appDocDir.path}/${user.uid}/${widget.tripId}/files/$filename";
+      if (!(await File(pathToFile).exists())) {
+        await firebaseStorageService.downloadFile(
+            "${user.uid}/${widget.tripId}/files", filename);
+      }
       files.add(File(pathToFile));
     }
     showDialog(
       context: context,
       builder: ((context) {
         return StatefulBuilder(builder: (context, setState) {
-          expenses = checkpoint.expenses;
+          _checkpointTitle.text = checkpointToUpdate.title ?? "";
+          _notes.text = checkpointToUpdate.notes;
+          expenses = checkpointToUpdate.expenses;
           return Dialog.fullscreen(
             child: Scaffold(
+              key: _scaffoldkey,
               body: Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
@@ -148,7 +479,7 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                       Column(
                         children: [
                           Text(
-                            "Checkpoint ${checkpoint.chekpointNumber}",
+                            "Checkpoint ${checkpointToUpdate.chekpointNumber}",
                             style: const TextStyle(
                                 fontSize: 30,
                                 fontWeight: FontWeight.bold,
@@ -186,7 +517,7 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                               left: 8.0,
                                               right: 8.0),
                                           child: Text(
-                                            checkpoint.address,
+                                            checkpointToUpdate.address,
                                             style: const TextStyle(
                                               fontSize: 18,
                                               color: Color(0xff454579),
@@ -196,8 +527,9 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                       ),
                                     ],
                                   ),
-                                  checkpoint.arrivalTime != null ||
-                                          checkpoint.departureTime != null
+                                  checkpointToUpdate.arrivalTime != null ||
+                                          checkpointToUpdate.departureTime !=
+                                              null
                                       ? Row(
                                           children: [
                                             const Padding(
@@ -218,7 +550,7 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                                   left: 8.0,
                                                   right: 8.0),
                                               child: Text(
-                                                "Arriving at ${checkpoint.arrivalTime!.hour.toString().padLeft(2, '0')}:${checkpoint.arrivalTime!.minute.toString().padLeft(2, '0')} | Leaving at ${checkpoint.departureTime!.hour.toString().padLeft(2, '0')}:${checkpoint.departureTime!.minute.toString().padLeft(2, '0')}",
+                                                "Arriving at ${checkpointToUpdate.arrivalTime!.hour.toString().padLeft(2, '0')}:${checkpointToUpdate.arrivalTime!.minute.toString().padLeft(2, '0')} | Leaving at ${checkpointToUpdate.departureTime!.hour.toString().padLeft(2, '0')}:${checkpointToUpdate.departureTime!.minute.toString().padLeft(2, '0')}",
                                                 style: const TextStyle(
                                                   fontSize: 18,
                                                   color: Color(0xff454579),
@@ -234,35 +566,16 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                           ),
                           Padding(
                             padding: const EdgeInsets.all(8.0),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                color: Colors.white54,
-                              ),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    children: [
-                                      Flexible(
-                                        flex: 5,
-                                        child: Padding(
-                                          padding: const EdgeInsets.only(
-                                              bottom: 4.0,
-                                              top: 8.0,
-                                              left: 8.0,
-                                              right: 8.0),
-                                          child: Text(
-                                            checkpoint.title ?? "",
-                                            style: const TextStyle(
-                                              fontSize: 18,
-                                              color: Color(0xff454579),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                            child: TextField(
+                              controller: _checkpointTitle,
+                              maxLength: 30,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: Colors.white54,
+                                hintText: 'Checkpoint subtitle',
+                                border: OutlineInputBorder(
+                                    borderSide: BorderSide.none,
+                                    borderRadius: BorderRadius.circular(40.0)),
                               ),
                             ),
                           ),
@@ -373,13 +686,14 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                         await tripService
                                             .updateCheckpointExpenses(
                                                 user.uid,
-                                                widget.trip.tripId,
-                                                selectedTripDay.dayId,
-                                                checkpoint.checkpointId!,
+                                                widget.tripId,
+                                                widget.tripDay.dayId,
+                                                checkpointToUpdate
+                                                    .checkpointId!,
                                                 expenseData);
                                         double price =
                                             double.parse(_expensesAmount.text);
-                                        checkpoint.expenses
+                                        checkpointToUpdate.expenses
                                             .add({_expensesTitle.text: price});
                                         totalExpenses = totalExpenses + price;
                                         _expensesTitle.clear();
@@ -488,13 +802,13 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                                     await tripService
                                                         .deleteCheckpointExpense(
                                                             user.uid,
-                                                            widget.trip.tripId,
-                                                            selectedTripDay
-                                                                .dayId,
-                                                            checkpoint
+                                                            widget.tripId,
+                                                            widget
+                                                                .tripDay.dayId,
+                                                            checkpointToUpdate
                                                                 .checkpointId!,
                                                             [expense]);
-                                                    checkpoint.expenses
+                                                    checkpointToUpdate.expenses
                                                         .remove(expense);
                                                     totalExpenses =
                                                         totalExpenses -
@@ -528,11 +842,11 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                               ),
                               child: Column(
                                 children: [
-                                  const Row(
+                                  Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Row(
+                                      const Row(
                                         children: [
                                           Padding(
                                             padding: EdgeInsets.only(
@@ -558,6 +872,47 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                           ),
                                         ],
                                       ),
+                                      IconButton(
+                                          onPressed: () async {
+                                            FilePickerResult? pickedFile =
+                                                await FilePicker.platform
+                                                    .pickFiles();
+                                            if (pickedFile != null) {
+                                              File file = File(pickedFile
+                                                  .files.single.path!);
+                                              try {
+                                                String fileName =
+                                                    file.path.split('/').last;
+                                                await firebaseStorageService
+                                                    .uploadFile(
+                                                        "${user.uid}/${widget.tripId}/files",
+                                                        file);
+                                                await tripService
+                                                    .updateCheckpointFileNames(
+                                                        user.uid,
+                                                        widget.tripId,
+                                                        widget.tripDay.dayId,
+                                                        checkpointToUpdate
+                                                            .checkpointId!,
+                                                        fileName);
+                                                String pathToFile =
+                                                    "${(appDocDir).path}/${widget.tripId}/files/$fileName";
+                                                await File(pathToFile)
+                                                    .create(recursive: true);
+                                                checkpointToUpdate.fileNames
+                                                    .add(fileName);
+                                                files.add(file);
+                                                setState(() {});
+                                              } catch (e) {
+                                                await showErrorDialog(context,
+                                                    'Something went wrong, please try again later');
+                                              }
+                                            }
+                                          },
+                                          icon: const Icon(
+                                            Icons.add_circle,
+                                            size: 35,
+                                          ))
                                     ],
                                   ),
                                   ClipRRect(
@@ -579,14 +934,46 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                       collapsedShape:
                                           const Border(bottom: BorderSide()),
                                       children: files
-                                          .map((file) => ListTile(
-                                                title: Text(
-                                                    file.path.split('/').last),
-                                                onTap: (() async {
-                                                  await OpenFile.open(
-                                                      file.path.toString());
-                                                }),
-                                              ))
+                                          .map(
+                                            (file) => ListTile(
+                                              title: Text(
+                                                  file.path.split('/').last),
+                                              onTap: (() async {
+                                                await OpenFile.open(
+                                                    file.path.toString());
+                                              }),
+                                              trailing: IconButton(
+                                                icon: const Icon(Icons.delete),
+                                                onPressed: () async {
+                                                  String fileName =
+                                                      file.path.split('/').last;
+                                                  try {
+                                                    await firebaseStorageService
+                                                        .deleteFile(
+                                                            "${user.uid}/${widget.tripId}/files",
+                                                            fileName);
+                                                    await tripService
+                                                        .deleteCheckpointFileName(
+                                                            user.uid,
+                                                            widget.tripId,
+                                                            widget
+                                                                .tripDay.dayId,
+                                                            checkpointToUpdate
+                                                                .checkpointId!,
+                                                            fileName);
+                                                    checkpointToUpdate.fileNames
+                                                        .remove(fileName);
+                                                    files.remove(file);
+                                                    setState(() {});
+                                                  } catch (e) {
+                                                    await showErrorDialog(
+                                                        context,
+                                                        'Something went wrong, please try again later');
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                          )
                                           .toList(),
                                     ),
                                   ),
@@ -627,8 +1014,15 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                     ],
                                   ),
                                   Padding(
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: Text(checkpoint.notes)),
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: TextField(
+                                      controller: _notes,
+                                      maxLength: 300,
+                                      maxLines: 3,
+                                      decoration: const InputDecoration(
+                                          hintText: "Notes..."),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -641,8 +1035,33 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             FilledButton(
-                              child: const Text('Back'),
+                              child: const Text('Cancel'),
                               onPressed: () {
+                                Navigator.pop(context);
+                              },
+                            ),
+                            FilledButton(
+                              child: const Text('Finish'),
+                              onPressed: () async {
+                                try {
+                                  Map<String, dynamic> data = {
+                                    "title": _checkpointTitle.text,
+                                    "notes": _notes.text
+                                  };
+                                  await tripService.updateCheckpoint(
+                                      user.uid,
+                                      widget.tripId,
+                                      widget.tripDay.dayId,
+                                      checkpointToUpdate.checkpointId!,
+                                      data);
+                                  setState(() {
+                                    checkpointToUpdate.title =
+                                        _checkpointTitle.text;
+                                  });
+                                } catch (e) {
+                                  await showErrorDialog(context,
+                                      'Something went wrong, please try again later');
+                                }
                                 Navigator.pop(context);
                               },
                             ),
@@ -660,59 +1079,76 @@ class _OngoingTripViewState extends State<OngoingTripView> {
     );
   }
 
-  @override
-  void initState() {
-    todaysTripDay = widget.trip.days
-        .firstWhere((day) => day.date.isSameDate(DateTime.now()));
-    selectedTripDay = todaysTripDay;
-    nextCheckpoint = todaysTripDay.checkpoints
-        .firstWhereOrNull((checkpoint) => checkpoint.isVisited == false);
-    currentLocation();
-    _expensesTitle = TextEditingController();
-    _expensesAmount = TextEditingController();
-    _memoryNotes = TextEditingController();
-    _otherDayNotes = TextEditingController();
-    super.initState();
+  Future<void> _selectDepartureTime(
+      BuildContext context, Checkpoint start, Checkpoint destination) async {
+    final TimeOfDay? time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (time != null) {
+      try {
+        Map<String, dynamic> destinationTimeData = {
+          "departureTime": {
+            "hour": time.hour,
+            "minute": time.minute,
+          },
+        };
+
+        await tripService.updateCheckpoint(user.uid, widget.tripId,
+            widget.tripDay.dayId, start.checkpointId!, destinationTimeData);
+        start.departureTime = time;
+        setState(() {});
+      } catch (e) {
+        await showErrorDialog(
+            context, 'Something went wrong, please try again later');
+      }
+    }
   }
 
-  @override
-  void dispose() async {
-    _expensesTitle.dispose();
-    _expensesAmount.dispose();
-    _memoryNotes.dispose();
-    _otherDayNotes.dispose();
-    super.dispose();
+  Future<void> _selectArrivalTime(
+      BuildContext context, Checkpoint destination) async {
+    final TimeOfDay? time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (time != null) {
+      try {
+        Map<String, dynamic> arrivalTimeData = {
+          "arrivalTime": {
+            "hour": time.hour,
+            "minute": time.minute,
+          },
+        };
+        await tripService.updateCheckpoint(user.uid, widget.tripId,
+            widget.tripDay.dayId, destination.checkpointId!, arrivalTimeData);
+        destination.arrivalTime = time;
+        setState(() {});
+      } catch (e) {
+        await showErrorDialog(
+            context, 'Something went wrong, please try again later');
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    markers = selectedTripDay.checkpoints.map((checkpoint) {
-      return checkpoint.marker;
-    }).toList();
-    polylines = selectedTripDay.checkpoints.skip(1).map((checkpoint) {
-      return checkpoint.polyline!;
-    }).toList();
-    if (selectedTripDay.date
-            .isBefore(DateTime.now().subtract(const Duration(days: 1))) &&
-        selectedTripDay.dayFinished == false) {
-      tripService.updateTripDay(
-        user.uid,
-        widget.trip.tripId,
-        selectedTripDay.dayId,
-        {"dayFinished": true},
-      ).then((_) {});
-      selectedTripDay.dayFinished = true;
-    }
-
+    List<Checkpoint> checkpoints = watch(widget.tripDay).checkpoints;
+    callOnce(
+      (context) {
+        markers = checkpoints.map((checkpoint) {
+          return checkpoint.marker;
+        }).toList();
+      },
+    );
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text(
-          widget.trip.title,
+          'Day ${widget.tripDay.dayNumber}',
           style: const TextStyle(color: Colors.white, fontSize: 30),
         ),
-        centerTitle: true,
         backgroundColor: const Color.fromARGB(255, 119, 102, 203),
+        centerTitle: true,
         leading: BackButton(
           onPressed: () {
             ScaffoldMessenger.of(context).clearSnackBars();
@@ -733,6 +1169,8 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                     return SizedBox(
                       height: constraints.maxHeight / 1.12,
                       child: GoogleMap(
+                        myLocationButtonEnabled: false,
+                        compassEnabled: false,
                         mapType: MapType.hybrid,
                         onMapCreated: (GoogleMapController controller) {
                           _onMapCreated(controller);
@@ -742,93 +1180,92 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                           zoom: 14.4746,
                         ),
                         myLocationEnabled: true,
-                        myLocationButtonEnabled: false,
                         markers: Set<Marker>.of(markers),
-                        polylines: Set<Polyline>.of(polylines),
+                        onLongPress: (latLang) => addMarker(latLang),
                       ),
                     );
                   }),
-                  SizedBox(
-                    height: 80,
-                    child: ScrollablePositionedList.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemScrollController: itemScrollController,
-                      itemCount: widget.trip.days.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.all(5.0),
-                          child: Container(
-                            width: 65,
-                            height: 65,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: selectedTripDay.dayId ==
-                                      widget.trip.days[index].dayId
-                                  ? const Color(0xbf7766CB)
-                                  : Colors.white70,
-                              border: todaysTripDay.dayId ==
-                                      widget.trip.days[index].dayId
-                                  ? Border.all(
-                                      color: const Color(0xffFFC212),
-                                      width: 3.0)
-                                  : null,
-                            ),
-                            child: Center(
-                              child: TextButton(
-                                onPressed: () {
-                                  selectedTripDay = widget.trip.days[index];
-                                  setState(() {});
-                                },
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      "Day",
-                                      style: selectedTripDay.dayId ==
-                                              widget.trip.days[index].dayId
-                                          ? const TextStyle(
-                                              color: Colors.white70,
-                                              fontWeight: FontWeight.bold)
-                                          : const TextStyle(
-                                              color: Color(0xff454579),
-                                              fontWeight: FontWeight.bold),
-                                    ),
-                                    Text(
-                                        widget.trip.days[index].dayNumber
-                                            .toString(),
-                                        style: selectedTripDay.dayId ==
-                                                widget.trip.days[index].dayId
-                                            ? const TextStyle(
-                                                color: Colors.white70,
-                                                fontWeight: FontWeight.bold)
-                                            : const TextStyle(
-                                                color: Color(0xff454579),
-                                                fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
+                  Padding(
+                    padding: const EdgeInsets.all(15.0),
+                    child: SearchAnchor(
+                      viewOnChanged: (value) async {
+                        http.Response response = await googleMapsService
+                            .fetchPlacesAutocompleteResults(value);
+                        final autoCompleteData =
+                            jsonDecode(response.body) as Map<String, dynamic>;
+                        setState(() {
+                          autoCompleteSuggestions =
+                              autoCompleteData["suggestions"];
+                        });
+                      },
+                      viewLeading: BackButton(
+                        onPressed: () {
+                          context.pop();
+                          FocusScope.of(context).requestFocus(FocusNode());
+                        },
+                      ),
+                      builder: (BuildContext context, searchController) {
+                        return SearchBar(
+                          hintText: 'Search location',
+                          controller: searchController,
+                          // padding: const MaterialStatePropertyAll<EdgeInsets>(
+                          //     EdgeInsets.symmetric(horizontal: 16.0)),
+                          onTap: () {
+                            searchController.openView();
+                          },
+                          leading: const Icon(Icons.search),
+                          backgroundColor: MaterialStateColor.resolveWith(
+                              (states) => const Color(0xe6FFFFFF)),
+                        );
+                      },
+                      suggestionsBuilder: (BuildContext context,
+                          SearchController controller) async {
+                        return List<ListTile>.generate(
+                          autoCompleteSuggestions.length,
+                          (int index) {
+                            final String item =
+                                '${autoCompleteSuggestions[index]["placePrediction"]["text"]["text"]}';
+                            return ListTile(
+                              title: Text(item),
+                              onTap: () async {
+                                http.Response response = await googleMapsService
+                                    .fetchPlaceLocationData(
+                                        autoCompleteSuggestions[index]
+                                            ["placePrediction"]["placeId"]);
+                                final locationData = jsonDecode(response.body)
+                                    as Map<String, dynamic>;
+                                addMarker(LatLng(
+                                    locationData["location"]["latitude"],
+                                    locationData["location"]["longitude"]));
+                                setState(() async {
+                                  controller.closeView(item);
+                                  FocusScope.of(context).unfocus();
+                                  await animateGoogleMapsCamera(
+                                      locationData["location"]["latitude"],
+                                      locationData["location"]["longitude"]);
+                                });
+                              },
+                            );
+                          },
                         );
                       },
                     ),
                   ),
                   Positioned.fill(
                     child: Align(
-                      alignment: Alignment.lerp(
-                          Alignment.centerRight, Alignment.bottomRight, 0.5)!,
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: FloatingActionButton(
-                          onPressed: (() async {
-                            await animateGoogleMapsCamera(
-                                currentPosition.latitude,
-                                currentPosition.longitude);
-                          }),
-                          child: const Icon(Icons.location_searching),
-                        ),
-                      ),
-                    ),
+                        alignment: Alignment.lerp(
+                            Alignment.centerRight, Alignment.bottomRight, 0.5)!,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: FloatingActionButton(
+                            onPressed: (() async {
+                              await animateGoogleMapsCamera(
+                                  currentPosition.latitude,
+                                  currentPosition.longitude);
+                            }),
+                            child: const Icon(Icons.location_searching),
+                          ),
+                        )),
                   ),
                   DraggableScrollableSheet(
                     snap: true,
@@ -861,34 +1298,30 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                 children: [
                                   Stack(
                                     children: [
-                                      selectedTripDay.dayFinished == true
-                                          ? Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 8.0),
-                                              child: IconButton(
-                                                icon: const Icon(
-                                                    Icons.auto_stories),
-                                                onPressed: () async {
-                                                  await addDayMemories(
-                                                    context,
-                                                    selectedTripDay,
-                                                    widget.trip.tripId,
-                                                    daySentimentScore,
-                                                    weatherScore,
-                                                    favoriteCheckpoint,
-                                                    _otherDayNotes,
-                                                    _memoryNotes,
-                                                    user,
-                                                    tripService,
-                                                    firebaseStorageService,
-                                                    checkpointRating,
-                                                    photoVideoController,
-                                                  );
-                                                },
-                                              ),
-                                            )
-                                          : const SizedBox(),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8.0),
+                                        child: IconButton(
+                                          icon: const Icon(Icons.auto_stories),
+                                          onPressed: () async {
+                                            await addDayMemories(
+                                              context,
+                                              widget.tripDay,
+                                              widget.tripId,
+                                              daySentimentScore,
+                                              weatherScore,
+                                              favoriteCheckpoint,
+                                              _otherDayNotes,
+                                              _memoryNotes,
+                                              user,
+                                              tripService,
+                                              firebaseStorageService,
+                                              checkpointRating,
+                                              photoVideoController,
+                                            );
+                                          },
+                                        ),
+                                      ),
                                       Padding(
                                         padding: const EdgeInsets.all(12.0),
                                         child: Center(
@@ -916,10 +1349,10 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                               flex: 1,
                               child: ListView.separated(
                                 padding: const EdgeInsets.only(top: 12),
-                                itemCount: selectedTripDay.checkpoints.length,
+                                itemCount: widget.tripDay.checkpoints.length,
                                 separatorBuilder: (context, index) {
                                   if (index ==
-                                      selectedTripDay.checkpoints.length) {
+                                      widget.tripDay.checkpoints.length) {
                                     return const Divider();
                                   }
                                   return SizedBox(
@@ -936,13 +1369,14 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                               height: 38,
                                               child: ElevatedButton.icon(
                                                 label: Text(
-                                                  selectedTripDay
+                                                  widget
+                                                              .tripDay
                                                               .checkpoints[
                                                                   index]
                                                               .departureTime ==
                                                           null
                                                       ? "Select departure time"
-                                                      : "Leaving at ${(selectedTripDay.checkpoints[index].departureTime!.hour).toString().padLeft(2, '0')}:${(selectedTripDay.checkpoints[index].departureTime!.minute).toString().padLeft(2, '0')}",
+                                                      : "Leaving at ${(widget.tripDay.checkpoints[index].departureTime!.hour).toString().padLeft(2, '0')}:${(widget.tripDay.checkpoints[index].departureTime!.minute).toString().padLeft(2, '0')}",
                                                   style: const TextStyle(
                                                       color: Colors.white),
                                                 ),
@@ -978,13 +1412,14 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                                   height: 38,
                                                   child: ElevatedButton.icon(
                                                     label: Text(
-                                                      selectedTripDay
+                                                      widget
+                                                                  .tripDay
                                                                   .checkpoints[
                                                                       index]
                                                                   .arrivalTime ==
                                                               null
                                                           ? "Provide departure time"
-                                                          : "Arriving at ${(selectedTripDay.checkpoints[index + 1].arrivalTime!.hour).toString().padLeft(2, '0')}:${(selectedTripDay.checkpoints[index + 1].arrivalTime!.minute).toString().padLeft(2, '0')}",
+                                                          : "Arriving at ${(widget.tripDay.checkpoints[index + 1].arrivalTime!.hour).toString().padLeft(2, '0')}:${(widget.tripDay.checkpoints[index + 1].arrivalTime!.minute).toString().padLeft(2, '0')}",
                                                       style: const TextStyle(
                                                           color: Colors.white),
                                                     ),
@@ -1006,8 +1441,8 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                   );
                                 },
                                 itemBuilder: (BuildContext context, int index) {
-                                  Checkpoint checkpoint = selectedTripDay
-                                      .checkpoints
+                                  Checkpoint checkpoint = widget
+                                      .tripDay.checkpoints
                                       .firstWhere((checkpoint) =>
                                           checkpoint.chekpointNumber ==
                                           index + 1);
@@ -1041,78 +1476,13 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                             .showMarkerInfoWindow(
                                                 checkpoint.marker.markerId);
                                       }),
-                                      leading: (nextCheckpoint != null &&
-                                              nextCheckpoint!.checkpointId ==
-                                                  checkpoint.checkpointId)
-                                          ? ElevatedButton(
-                                              onPressed: () async {
-                                                try {
-                                                  await tripService
-                                                      .updateCheckpoint(
-                                                    user.uid,
-                                                    widget.trip.tripId,
-                                                    todaysTripDay.dayId,
-                                                    checkpoint.checkpointId!,
-                                                    {"isVisited": true},
-                                                  );
-                                                  nextCheckpoint = todaysTripDay
-                                                      .checkpoints
-                                                      .firstWhereOrNull(
-                                                          (checkpoint) =>
-                                                              checkpoint
-                                                                  .isVisited ==
-                                                              false);
-                                                  if (nextCheckpoint == null) {
-                                                    await tripService
-                                                        .updateTripDay(
-                                                      user.uid,
-                                                      widget.trip.tripId,
-                                                      todaysTripDay.dayId,
-                                                      {"dayFinished": true},
-                                                    );
-                                                    todaysTripDay.dayFinished =
-                                                        true;
-                                                  }
-                                                  checkpoint.isVisited = true;
-                                                  if (todaysTripDay.checkpoints
-                                                      .every((checkpoint) =>
-                                                          checkpoint
-                                                              .isVisited ==
-                                                          true)) {
-                                                    // TODO redirect user to memory page!
-                                                  }
-                                                  setState(() {});
-                                                } catch (e) {
-                                                  if (context.mounted) {
-                                                    await showErrorDialog(
-                                                        context,
-                                                        'Something went wrong, please try again later');
-                                                  }
-                                                }
-                                              },
-                                              style: ElevatedButton.styleFrom(
-                                                  minimumSize:
-                                                      const Size(50, 50),
-                                                  backgroundColor:
-                                                      const Color.fromRGBO(
-                                                          201, 71, 71, 0.749),
-                                                  shape: const CircleBorder()),
-                                              child: const Text(
-                                                "visited",
-                                                style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight:
-                                                        FontWeight.bold),
-                                              ),
-                                            )
-                                          : null,
                                       trailing: PopupMenuButton(
                                         itemBuilder: (context) {
                                           return [
                                             PopupMenuItem(
                                               onTap: (() async {
-                                                await checkpointInfo(
-                                                    checkpoint);
+                                                // await checkpointInfo(
+                                                //     checkpoint);
                                               }),
                                               child: const Row(
                                                 children: [
@@ -1126,8 +1496,6 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                               ),
                                             ),
                                             PopupMenuItem(
-                                              enabled: (checkpoint.isVisited ||
-                                                  selectedTripDay.dayFinished),
                                               onTap: (() async {
                                                 // await addCheckpointMemories(
                                                 //     checkpoint);
@@ -1135,8 +1503,8 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                                                     context,
                                                     checkpoint,
                                                     checkpointRating,
-                                                    widget.trip.tripId,
-                                                    selectedTripDay.dayId,
+                                                    widget.tripId,
+                                                    widget.tripDay.dayId,
                                                     photoVideoController,
                                                     _memoryNotes,
                                                     user,
@@ -1166,37 +1534,6 @@ class _OngoingTripViewState extends State<OngoingTripView> {
                         ),
                       );
                     },
-                  ),
-                  Positioned(
-                    top: 90,
-                    child: Container(
-                      height: 40,
-                      decoration: const BoxDecoration(
-                          shape: BoxShape.rectangle,
-                          color: Color(0xffFFC212),
-                          borderRadius: BorderRadius.only(
-                              topRight: Radius.circular(12.0),
-                              bottomRight: Radius.circular(12.0))),
-                      child: TextButton(
-                        onPressed: () async {
-                          if (nextCheckpoint != null) {
-                            await animateGoogleMapsCamera(
-                                nextCheckpoint!.coordinates.latitude,
-                                nextCheckpoint!.coordinates.longitude);
-                            await mapController.showMarkerInfoWindow(
-                                nextCheckpoint!.marker.markerId);
-                          }
-                        },
-                        child: Text(
-                          nextCheckpoint != null
-                              ? "Next: Checkpoint ${nextCheckpoint!.chekpointNumber}"
-                              : "All checkpoints visited today!",
-                          style: const TextStyle(
-                              color: Color(0xff46467A),
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
                   ),
                 ],
               ),

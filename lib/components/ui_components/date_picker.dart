@@ -6,19 +6,23 @@ class DatePicker extends StatelessWidget {
       required this.textController,
       required this.pickedDates,
       required this.validateSelectedDates,
-      required this.textFieldErrorMessage});
+      required this.textFieldErrorMessage,
+      this.firstDate});
   final TextEditingController textController;
   final Map<String, dynamic> pickedDates;
   final bool validateSelectedDates;
   final String textFieldErrorMessage;
+  final DateTime? firstDate;
 
   Future<void> _selectTripDates(BuildContext context) async {
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
       keyboardType: TextInputType.text,
-      firstDate: DateTime(
-          DateTime.now().year, DateTime.now().month, DateTime.now().day),
-      lastDate: DateTime(DateTime.now().year + 5),
+      firstDate: firstDate == null
+          ? DateTime(
+              DateTime.now().year, DateTime.now().month, DateTime.now().day)
+          : firstDate!,
+      lastDate: DateTime(DateTime.now().year + 25),
     );
     if (picked != null) {
       textController.text =
