@@ -1,7 +1,6 @@
 import 'package:mytraveljournal/services/auth/auth_user.dart';
 
 abstract class AuthProvider {
-
   Future<void> initialize();
 
   AuthUser? get currentUser;
@@ -15,4 +14,5 @@ abstract class AuthProvider {
   });
   Future<void> logout();
   Future<void> sendEmailVerification();
+  Future<void> sendForgotPasswordEmail({required String email});
 }

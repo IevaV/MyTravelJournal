@@ -14,6 +14,7 @@ import 'package:mytraveljournal/views/memories/past_trip_memory_view.dart';
 import 'package:mytraveljournal/views/memories/past_trips_view.dart';
 import 'package:mytraveljournal/views/memories/plan_past_trip_day_view.dart';
 import 'package:mytraveljournal/views/ongoing_trip_view.dart';
+import 'package:mytraveljournal/views/reset_password_view.dart';
 import 'package:mytraveljournal/views/sign_in_view.dart';
 import 'package:mytraveljournal/views/my_profile_view.dart';
 import 'package:mytraveljournal/views/sign_up_view.dart';
@@ -60,7 +61,7 @@ void main() async {
             GoRoute(
               parentNavigatorKey: shellNavigatorKey,
               path: '/profile',
-              builder: (context, state) => const MyProfileView(),
+              builder: (context, state) => MyProfileView(),
             ),
             GoRoute(
               parentNavigatorKey: shellNavigatorKey,
@@ -150,6 +151,11 @@ void main() async {
             trip: trip,
           );
         },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/reset-password',
+        builder: (context, state) => const ResetPasswordView(),
       ),
     ],
   );

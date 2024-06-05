@@ -143,9 +143,12 @@ Future<void> addDayMemories(
                     content: Container(
                       alignment: Alignment.centerLeft,
                       child: Container(
-                        color: Colors.pink.shade300,
                         height: 60,
                         width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xff454579),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
@@ -156,8 +159,9 @@ Future<void> addDayMemories(
                               },
                               icon: Icon(
                                 Icons.sentiment_dissatisfied_outlined,
+                                size: 40,
                                 color: daySentimentScore == "dissatisfied"
-                                    ? const Color.fromRGBO(255, 232, 173, 0.984)
+                                    ? const Color(0xffF4D874)
                                     : Colors.white70,
                               ),
                             ),
@@ -168,9 +172,9 @@ Future<void> addDayMemories(
                                 },
                                 icon: Icon(
                                   Icons.sentiment_neutral_outlined,
+                                  size: 40,
                                   color: daySentimentScore == "neutral"
-                                      ? const Color.fromRGBO(
-                                          255, 232, 173, 0.984)
+                                      ? const Color(0xffF4D874)
                                       : Colors.white70,
                                 )),
                             IconButton(
@@ -180,9 +184,9 @@ Future<void> addDayMemories(
                                 },
                                 icon: Icon(
                                   Icons.sentiment_satisfied_alt_outlined,
+                                  size: 40,
                                   color: daySentimentScore == "satisfied"
-                                      ? const Color.fromRGBO(
-                                          255, 232, 173, 0.984)
+                                      ? const Color(0xffF4D874)
                                       : Colors.white70,
                                 )),
                             IconButton(
@@ -192,9 +196,9 @@ Future<void> addDayMemories(
                                 },
                                 icon: Icon(
                                   Icons.sentiment_very_satisfied_outlined,
+                                  size: 40,
                                   color: daySentimentScore == "very_satisfied"
-                                      ? const Color.fromRGBO(
-                                          255, 232, 173, 0.984)
+                                      ? const Color(0xffF4D874)
                                       : Colors.white70,
                                 )),
                           ],
@@ -207,9 +211,12 @@ Future<void> addDayMemories(
                     content: Container(
                       alignment: Alignment.centerLeft,
                       child: Container(
-                        color: Colors.blue.shade300,
                         height: 60,
                         width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xff454579),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
@@ -220,8 +227,9 @@ Future<void> addDayMemories(
                               },
                               icon: Icon(
                                 Icons.ac_unit_outlined,
+                                size: 40,
                                 color: weatherScore == "snowy"
-                                    ? const Color.fromRGBO(255, 232, 173, 0.984)
+                                    ? Colors.blue
                                     : Colors.white70,
                               ),
                             ),
@@ -232,9 +240,9 @@ Future<void> addDayMemories(
                                 },
                                 icon: Icon(
                                   Icons.water_drop_outlined,
+                                  size: 40,
                                   color: weatherScore == "rainy"
-                                      ? const Color.fromRGBO(
-                                          255, 232, 173, 0.984)
+                                      ? Colors.blue
                                       : Colors.white70,
                                 )),
                             IconButton(
@@ -244,9 +252,9 @@ Future<void> addDayMemories(
                                 },
                                 icon: Icon(
                                   Icons.wb_cloudy_outlined,
+                                  size: 40,
                                   color: weatherScore == "cloudy"
-                                      ? const Color.fromRGBO(
-                                          255, 232, 173, 0.984)
+                                      ? Colors.blue
                                       : Colors.white70,
                                 )),
                             IconButton(
@@ -256,9 +264,9 @@ Future<void> addDayMemories(
                                 },
                                 icon: Icon(
                                   Icons.wb_sunny_outlined,
+                                  size: 40,
                                   color: weatherScore == "sunny"
-                                      ? const Color.fromRGBO(
-                                          255, 232, 173, 0.984)
+                                      ? const Color(0xffF4D874)
                                       : Colors.white70,
                                 )),
                           ],

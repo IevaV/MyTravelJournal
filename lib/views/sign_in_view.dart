@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mytraveljournal/constants/routes.dart';
 import 'package:mytraveljournal/models/user.dart';
 import 'package:mytraveljournal/services/auth/auth_exceptions.dart';
 import 'package:mytraveljournal/services/auth/auth_service.dart';
@@ -122,11 +121,7 @@ class _SignInViewState extends State<SignInView> {
                         padding: const EdgeInsets.symmetric(horizontal: 50.0),
                         child: TextButton(
                           onPressed: () {
-                            //TODO navigation to Forgot Password view
-                            Navigator.of(context).pushNamedAndRemoveUntil(
-                              registerRoute,
-                              (route) => false,
-                            );
+                            context.go('/reset-password');
                           },
                           child: const Text(
                             'Forgot password?',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
 import 'package:mytraveljournal/components/dialog_components/show_on_delete_dialog.dart';
 import 'package:mytraveljournal/locator.dart';
@@ -42,19 +43,22 @@ class FutureTripsView extends StatelessWidget with WatchItMixin {
             children: [
               const Padding(
                 padding: EdgeInsets.only(left: 8.0, top: 10.0, bottom: 10.0),
-                child: Text(
-                  "Continue planning",
-                  style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(
-                        color: Colors.black26,
-                        blurRadius: 10.0,
-                        offset: Offset(0.0, 3.0),
-                      ),
-                    ],
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "Continue planning",
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black26,
+                          blurRadius: 10.0,
+                          offset: Offset(0.0, 3.0),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -71,6 +75,7 @@ class FutureTripsView extends StatelessWidget with WatchItMixin {
                     itemBuilder: (BuildContext context, int index) {
                       Trip trip = userFutureTrips[index];
                       return Container(
+                        height: 150,
                         decoration: BoxDecoration(
                             color: Colors.white70,
                             borderRadius: BorderRadius.circular(20)),
@@ -82,7 +87,30 @@ class FutureTripsView extends StatelessWidget with WatchItMixin {
                           child: Container(
                             padding: EdgeInsets.all(8.0),
                             child: ListTile(
-                              title: Text(trip.title),
+                              title: Text(
+                                textAlign: TextAlign.center,
+                                trip.title,
+                                style: const TextStyle(
+                                    fontSize: 30,
+                                    color: Color(0xff46467A),
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    Text(
+                                      "${DateFormat('dd/MM/yyyy').format(trip.startDate)} - ${DateFormat('dd/MM/yyyy').format(trip.endDate)}",
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        color: Color(0xff454579),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                               // TODO Create subtitle that shows how many days are in "planned" state for trip
                               // subtitle: Text(
                               //     '${userFutureTrips[index].days.where((day) => day.planned == true).length}/${userFutureTrips[index].days.length} days planned'),

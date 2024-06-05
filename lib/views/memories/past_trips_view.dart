@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:mytraveljournal/components/dialog_components/show_error_dialog.dart';
 import 'package:mytraveljournal/components/dialog_components/show_on_delete_dialog.dart';
 import 'package:mytraveljournal/locator.dart';
@@ -63,9 +64,8 @@ class _PastTripsViewState extends State<PastTripsView> {
                 ),
               ),
               Flexible(
-                flex: 3,
+                flex: 7,
                 child: ListView.builder(
-                  padding: const EdgeInsets.all(8),
                   itemCount: userPastTrips.length,
                   itemBuilder: (BuildContext context, int index) {
                     Trip trip = userPastTrips[index];
@@ -75,69 +75,112 @@ class _PastTripsViewState extends State<PastTripsView> {
                     return Column(
                       children: [
                         trip.startDate.year != previousTripYear
-                            ? Container(
-                                alignment: Alignment.center,
-                                child: Text(trip.startDate.year.toString()),
-                              )
-                            : const SizedBox(),
-                        Container(
-                          decoration: BoxDecoration(
-                              color: Colors.white70,
-                              borderRadius: BorderRadius.circular(20)),
-                          child: Dismissible(
-                            key: ValueKey<Trip>(trip),
-                            background: Container(
-                              color: Colors.redAccent,
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.all(8.0),
-                              child: ListTile(
-                                title: Text(trip.title),
-                                onTap: () {
-                                  GoRouter.of(context)
-                                      .push('/past-trip-memories', extra: trip);
-                                },
-                                trailing: PopupMenuButton(
-                                  itemBuilder: (context) {
-                                    return [
-                                      PopupMenuItem(
-                                        onTap: (() async {
-                                          GoRouter.of(context).push(
-                                              '/plan-future-trip',
-                                              extra: trip);
-                                        }),
-                                        child: const Row(
-                                          children: [
-                                            Padding(
-                                              padding: EdgeInsets.all(8),
-                                              child: Icon(Icons.edit),
-                                            ),
-                                            Text('Edit')
-                                          ],
+                            ? Padding(
+                                padding: const EdgeInsets.only(
+                                    bottom: 8, top: 8, right: 8),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      height: 45,
+                                      width: 175,
+                                      decoration: const BoxDecoration(
+                                          shape: BoxShape.rectangle,
+                                          color: Color(0xff46467A),
+                                          borderRadius: BorderRadius.only(
+                                              topRight: Radius.circular(25.0),
+                                              bottomRight:
+                                                  Radius.circular(25.0))),
+                                      child: Center(
+                                        child: Text(
+                                          trip.startDate.year.toString(),
+                                          style: const TextStyle(
+                                              fontSize: 24,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold),
                                         ),
                                       ),
-                                    ];
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : const SizedBox(),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Container(
+                            height: 150,
+                            decoration: BoxDecoration(
+                                color: Colors.white70,
+                                borderRadius: BorderRadius.circular(20)),
+                            child: Dismissible(
+                              key: ValueKey<Trip>(trip),
+                              background: Container(
+                                color: Colors.redAccent,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.all(8.0),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.all(0),
+                                  title: Text(
+                                    textAlign: TextAlign.center,
+                                    trip.title,
+                                    style: const TextStyle(
+                                        fontSize: 28,
+                                        color: Color(0xff46467A),
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                  subtitle: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceEvenly,
+                                      children: [
+                                        Text(
+                                          "${DateFormat('dd/MM/yyyy').format(trip.startDate)} - ${DateFormat('dd/MM/yyyy').format(trip.endDate)}",
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            color: Color(0xff454579),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    GoRouter.of(context).push(
+                                        '/past-trip-memories',
+                                        extra: trip);
                                   },
+                                  leading: const SizedBox(),
+                                  trailing: IconButton(
+                                    onPressed: () {
+                                      GoRouter.of(context).push(
+                                          '/plan-future-trip',
+                                          extra: trip);
+                                    },
+                                    icon: const Icon(
+                                      Icons.edit,
+                                      size: 24,
+                                    ),
+                                  ),
                                 ),
                               ),
+                              confirmDismiss: (direction) async {
+                                return await showDeleteDialog(
+                                    context, 'trip "${trip.title}"?');
+                              },
+                              onDismissed: (direction) async {
+                                await firebaseStorageService
+                                    .deleteAllFilesInDirectory(
+                                        "${user.uid}/${trip.tripId}/files");
+                                try {
+                                  await tripService.deleteTrip(
+                                      user.uid, trip.tripId);
+                                  user.userTrips.remove(trip);
+                                } catch (e) {
+                                  await showErrorDialog(context,
+                                      'Something went wrong, please try again later');
+                                }
+                              },
                             ),
-                            confirmDismiss: (direction) async {
-                              return await showDeleteDialog(
-                                  context, 'trip "${trip.title}"?');
-                            },
-                            onDismissed: (direction) async {
-                              await firebaseStorageService
-                                  .deleteAllFilesInDirectory(
-                                      "${user.uid}/${trip.tripId}/files");
-                              try {
-                                await tripService.deleteTrip(
-                                    user.uid, trip.tripId);
-                                user.userTrips.remove(trip);
-                              } catch (e) {
-                                await showErrorDialog(context,
-                                    'Something went wrong, please try again later');
-                              }
-                            },
                           ),
                         ),
                       ],
