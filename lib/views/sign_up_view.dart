@@ -147,33 +147,52 @@ class _SignUpViewState extends State<SignUpView> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    TextField(
-                      controller: _username,
-                      enableSuggestions: false,
-                      autocorrect: false,
-                      maxLength: 30,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'\w')),
-                      ],
-                      onChanged: (usernameInputText) {
-                        usernameInputText = usernameInputText.toLowerCase();
-                        _username.value = TextEditingValue(
-                          text: usernameInputText,
-                          selection: _username.selection,
-                        );
-                        usernameValidation(usernameInputText);
-                      },
-                      decoration: InputDecoration(
-                        labelText: 'Username',
-                        hintText: 'Enter your username here',
-                        labelStyle: const TextStyle(color: Colors.black),
-                        helperText: usernameAvailable,
-                        helperStyle: const TextStyle(
-                          color: Colors.green,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 40.0, vertical: 10),
+                      child: PhysicalModel(
+                        borderRadius: BorderRadius.circular(50),
+                        color: Colors.white70,
+                        elevation: 5.0,
+                        shadowColor: ColorConstants.assetColorBlack,
+                        child: TextField(
+                          controller: _username,
+                          enableSuggestions: false,
+                          autocorrect: false,
+                          maxLength: 30,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'\w')),
+                          ],
+                          onChanged: (usernameInputText) {
+                            usernameInputText = usernameInputText.toLowerCase();
+                            _username.value = TextEditingValue(
+                              text: usernameInputText,
+                              selection: _username.selection,
+                            );
+                            usernameValidation(usernameInputText);
+                          },
+                          decoration: InputDecoration(
+                            counterText: '',
+                            labelText: 'Username',
+                            hintText: 'Enter your username here',
+                            labelStyle: const TextStyle(color: Colors.black),
+                            helperText: usernameAvailable,
+                            helperStyle: const TextStyle(
+                              color: Colors.green,
+                            ),
+                            errorText: usernameErrorMessage,
+                            filled: true,
+                            contentPadding: const EdgeInsets.only(
+                                left: 25.0,
+                                right: 25.0,
+                                top: 15.0,
+                                bottom: 15.0),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(50.0),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
                         ),
-                        errorText: usernameErrorMessage,
-                        filled: true,
-                        fillColor: ColorConstants.yellowPlaceholderBackground,
                       ),
                     ),
                     AuthInputField(
